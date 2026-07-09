@@ -3,6 +3,9 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Frame from "@/components/Frame";
+import Logo from "@/components/Logo";
+import DuelHero from "@/components/DuelHero";
 
 function LoginInner() {
   const searchParams = useSearchParams();
@@ -20,26 +23,34 @@ function LoginInner() {
       provider: "google",
       options: { redirectTo },
     });
-    if (error) {
-      setLoading(false);
-    }
-    // On success the browser is redirected to Google, so no further UI needed.
+    if (error) setLoading(false);
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm text-center">
-        <div className="mb-2 text-5xl">🍽️</div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          What Should I Eat
-        </h1>
-        <p className="mt-2 text-sm text-black/60 dark:text-white/60">
-          A few quick this-or-that picks and we&apos;ll commit to one thing
-          for you.
-        </p>
+    <Frame>
+      <main className="anim-screenIn flex flex-1 flex-col items-center px-[26px] pb-[calc(26px+env(safe-area-inset-bottom))]">
+        <div className="mt-[46px]">
+          <Logo size={52} wordmarkSize={34} />
+        </div>
+
+        {/* Hero: two tilted floating cards + VS */}
+        <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+          <DuelHero />
+        </div>
+
+        <div className="mb-[22px] text-center">
+          <h1 className="text-[27px] font-bold leading-[1.1] tracking-[-0.5px] text-ink">
+            Can&apos;t decide
+            <br />
+            what to eat?
+          </h1>
+          <p className="mt-[9px] font-[family-name:var(--font-body)] text-[15px] font-bold text-muted">
+            Two dishes. One tap. Zero overthinking.
+          </p>
+        </div>
 
         {authError && (
-          <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+          <p className="mb-3 w-full rounded-xl border-[2.5px] border-ink bg-[#ffd400] px-3 py-2 text-center text-[13px] font-semibold text-ink">
             Sign-in didn&apos;t complete. Please try again.
           </p>
         )}
@@ -47,13 +58,17 @@ function LoginInner() {
         <button
           onClick={signInWithGoogle}
           disabled={loading}
-          className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black shadow-sm transition hover:bg-black/5 disabled:opacity-60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+          className="press flex h-[58px] w-full items-center justify-center gap-[11px] rounded-2xl border-[3px] border-ink bg-card text-[17px] font-semibold text-ink shadow-pop disabled:opacity-60"
         >
           <GoogleIcon />
-          {loading ? "Redirecting…" : "Continue with Google"}
+          {loading ? "Redirecting…" : "Sign in with Google"}
         </button>
-      </div>
-    </main>
+
+        <p className="mt-[14px] text-center font-[family-name:var(--font-body)] text-[11px] font-semibold text-muted2">
+          By continuing you agree to our Terms &amp; Privacy.
+        </p>
+      </main>
+    </Frame>
   );
 }
 
@@ -67,22 +82,22 @@ export default function LoginPage() {
 
 function GoogleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+    <svg width="21" height="21" viewBox="0 0 48 48" aria-hidden="true">
       <path
-        fill="#4285F4"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
       />
       <path
-        fill="#34A853"
-        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
       />
       <path
         fill="#FBBC05"
-        d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3-2.33Z"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
       />
       <path
-        fill="#EA4335"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
       />
     </svg>
   );

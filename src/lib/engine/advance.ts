@@ -7,10 +7,14 @@ import {
   filterByAvailability,
 } from "./time-context";
 import {
+  bestSoFar,
   deriveState,
   nextStep,
+  pickBackup,
   type NextStep,
+  type SessionState,
 } from "./session";
+import type { Dish as DishType, TasteWeights } from "@/lib/types";
 import {
   loadConstraints,
   loadDishes,
@@ -56,16 +60,19 @@ function buildCard(dish: Dish, restaurantName: string): DishCard {
   };
 }
 
-/**
- * Loads everything the engine needs, computes the next step, and — if the
- * session just reached a decision — persists committed_dish_id once. Shared
- * by /api/next-pair and /api/record-duel so both return the same shape.
- */
-export async function computePayload(
+interface EngineContext {
+  eligible: DishType[];
+  weights: TasteWeights;
+  state: SessionState;
+  card: (id: string) => DishCard | null;
+}
+
+/** Load + assemble everything the engine needs for one request. */
+async function loadContext(
   db: SupabaseClient,
   userId: string,
   sessionId: string
-): Promise<StepPayload> {
+): Promise<EngineContext> {
   const [dishes, constraints, weights, duels, restaurantNames] =
     await Promise.all([
       loadDishes(db),
@@ -86,13 +93,43 @@ export async function computePayload(
   const eligible = filterEligible(available, constraints);
   const dishById = new Map(dishes.map((d) => [d.id, d]));
   const state = deriveState(duels);
-  const step: NextStep = nextStep(eligible, state, weights);
 
   const card = (id: string): DishCard | null => {
     const d = dishById.get(id);
     if (!d) return null;
     return buildCard(d, restaurantNames.get(d.restaurant_id) ?? "—");
   };
+
+  return { eligible, weights, state, card };
+}
+
+const FALLBACK_CARD = (id: string): DishCard => ({
+  id,
+  name: "Your pick",
+  restaurantName: "—",
+  price: null,
+  description: null,
+  image_url: null,
+  cuisine: null,
+  delivery_apps: [],
+});
+
+/**
+ * Loads everything the engine needs, computes the next step, and — if the
+ * session just reached a decision — persists committed_dish_id once. Shared
+ * by /api/next-pair and /api/record-duel so both return the same shape.
+ */
+export async function computePayload(
+  db: SupabaseClient,
+  userId: string,
+  sessionId: string
+): Promise<StepPayload> {
+  const { eligible, weights, state, card } = await loadContext(
+    db,
+    userId,
+    sessionId
+  );
+  const step: NextStep = nextStep(eligible, state, weights);
 
   if (step.done) {
     const hero = card(step.heroId);
@@ -106,21 +143,7 @@ export async function computePayload(
     return {
       done: true,
       sessionId,
-      result: {
-        hero:
-          hero ??
-          ({
-            id: step.heroId,
-            name: "Your pick",
-            restaurantName: "—",
-            price: null,
-            description: null,
-            image_url: null,
-            cuisine: null,
-            delivery_apps: [],
-          } as DishCard),
-        backup,
-      },
+      result: { hero: hero ?? FALLBACK_CARD(step.heroId), backup },
     };
   }
 
@@ -135,6 +158,42 @@ export async function computePayload(
     sessionId,
     roundIndex: step.roundIndex,
     pair: { a, b },
+  };
+}
+
+/**
+ * Force an early decision ("Done"): commit to the best dish so far and return
+ * the result payload, regardless of the normal stop conditions.
+ */
+export async function commitBestNow(
+  db: SupabaseClient,
+  userId: string,
+  sessionId: string
+): Promise<StepPayload> {
+  const { eligible, weights, state, card } = await loadContext(
+    db,
+    userId,
+    sessionId
+  );
+  const hero = bestSoFar(eligible, state, weights) ?? eligible[0] ?? null;
+  const heroId = hero?.id ?? "";
+  const backupId = heroId ? pickBackup(eligible, heroId, weights) : null;
+
+  if (heroId) {
+    await db
+      .from("sessions")
+      .update({ committed_dish_id: heroId })
+      .eq("id", sessionId)
+      .is("committed_dish_id", null);
+  }
+
+  return {
+    done: true,
+    sessionId,
+    result: {
+      hero: (heroId ? card(heroId) : null) ?? FALLBACK_CARD(heroId),
+      backup: backupId ? card(backupId) : null,
+    },
   };
 }
 

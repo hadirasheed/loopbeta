@@ -1,26 +1,138 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---- Loop design system --------------------------------------------------
+   Neo-brutalist "sticker" aesthetic: paper canvas, thick ink borders, hard
+   offset shadows, Fredoka display + Nunito body. Light-only by design.       */
+@theme {
+  --color-canvas: #d9d8d2; /* outside the app frame */
+  --color-paper: #efeee9; /* app surface */
+  --color-ink: #161512; /* borders + primary text */
+  --color-accent: #74b943; /* brand green */
+  --color-accent-dark: #5c9a30;
+  --color-muted: #7a786f;
+  --color-muted2: #9a988f;
+  --color-card: #ffffff;
+
+  /* kept so the admin UI's bg-background/foreground utilities still resolve */
+  --color-background: #ffffff;
+  --color-foreground: #161512;
+
+  --font-sans: var(--font-fredoka);
+  --font-body: var(--font-nunito);
+
+  --shadow-pop: 6px 6px 0 rgba(20, 19, 15, 0.92);
+  --shadow-hard: 3px 3px 0 rgba(20, 19, 15, 0.9);
+  --shadow-hard-sm: 2px 2px 0 rgba(20, 19, 15, 0.9);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* Hide scrollbars inside the phone frame, matching the mockup. */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@layer components {
+  /* Halftone dot texture overlaid on the paper frame. */
+  .halftone {
+    background-image: radial-gradient(rgba(20, 19, 15, 0.55) 1px, transparent 1.5px);
+    background-size: 15px 15px;
+  }
+
+  /* Diagonal stripe fill used behind dish images before they load. */
+  .stripes {
+    background: repeating-linear-gradient(
+      45deg,
+      #eceae2,
+      #eceae2 9px,
+      #e2e0d6 9px,
+      #e2e0d6 18px
+    );
+  }
+
+  /* Tactile press: button sinks into its shadow on tap. */
+  .press {
+    transition: transform 0.07s ease, box-shadow 0.07s ease;
+  }
+  .press:active {
+    transform: translate(2px, 2px);
+    box-shadow: var(--shadow-hard) !important;
+  }
+}
+
+/* ---- Loop keyframes (ported from the design) ---------------------------- */
+@keyframes dc-screenIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dc-dropInTop {
+  from { opacity: 0; transform: translateY(-46px) rotate(-2.5deg) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+@keyframes dc-dropInBottom {
+  from { opacity: 0; transform: translateY(46px) rotate(2.5deg) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+@keyframes dc-winnerPop {
+  0% { transform: scale(1) rotate(0); }
+  28% { transform: scale(1.045) rotate(-1.2deg); }
+  55% { transform: scale(0.99) rotate(0.4deg); }
+  100% { transform: scale(1.02) rotate(0); }
+}
+@keyframes dc-loserOutTop {
+  0% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translateY(-66px) scale(0.88) rotate(-4deg); }
+}
+@keyframes dc-loserOutBottom {
+  0% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translateY(66px) scale(0.88) rotate(4deg); }
+}
+@keyframes dc-vsPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(-40deg); }
+  65% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(-8deg); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-8deg); }
+}
+@keyframes dc-stampIn {
+  0% { opacity: 0; transform: scale(2) rotate(-13deg); }
+  55% { opacity: 1; transform: scale(0.85) rotate(-13deg); }
+  75% { transform: scale(1.08) rotate(-13deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-13deg); }
+}
+@keyframes dc-floatA {
+  0%, 100% { transform: rotate(-9deg) translateY(0); }
+  50% { transform: rotate(-9deg) translateY(-9px); }
+}
+@keyframes dc-floatB {
+  0%, 100% { transform: rotate(8deg) translateY(0); }
+  50% { transform: rotate(8deg) translateY(9px); }
+}
+@keyframes dc-resultPop {
+  0% { opacity: 0; transform: scale(0.8) rotate(-3deg); }
+  60% { opacity: 1; transform: scale(1.03) rotate(0.6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+.anim-screenIn { animation: dc-screenIn 0.4s ease both; }
+.anim-dropInTop { animation: dc-dropInTop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-dropInBottom { animation: dc-dropInBottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-winnerPop { animation: dc-winnerPop 0.6s ease both; }
+.anim-loserOutTop { animation: dc-loserOutTop 0.5s ease-in both; }
+.anim-loserOutBottom { animation: dc-loserOutBottom 0.5s ease-in both; }
+.anim-vsPop { animation: dc-vsPop 0.5s 0.12s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-stampIn { animation: dc-stampIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-floatA { animation: dc-floatA 4s ease-in-out infinite; }
+.anim-floatB { animation: dc-floatB 4s ease-in-out infinite; }
+.anim-resultPop { animation: dc-resultPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }

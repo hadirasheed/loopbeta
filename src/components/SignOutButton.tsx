@@ -1,7 +1,7 @@
 export default function SignOutButton() {
   return (
-    <form action="/auth/signout" method="post">
-      <button type="submit" className="underline underline-offset-4">
+    <form action="/auth/signout" method="post" className="inline">
+      <button type="submit" className="underline-offset-4 hover:underline">
         Sign out
       </button>
     </form>

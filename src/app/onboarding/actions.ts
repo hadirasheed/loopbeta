@@ -51,5 +51,5 @@ export async function saveConstraints(
     if (tError) return { error: tError.message };
   }
 
-  redirect("/");
+  redirect("/duel");
 }
