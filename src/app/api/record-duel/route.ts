@@ -3,18 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { computePayload } from "@/lib/engine/advance";
 import { loadOrInitTaste } from "@/lib/engine/db";
 import { bradleyTerryUpdate } from "@/lib/engine/update";
+import { currentDaypart } from "@/lib/engine/time-context";
 import type { DishAttributes, DuelWinner } from "@/lib/types";
 
 const WINNERS: DuelWinner[] = ["a", "b", "neither"];
-
-function daypart(d: Date): string {
-  const h = d.getHours();
-  if (h < 6) return "night";
-  if (h < 12) return "morning";
-  if (h < 17) return "afternoon";
-  if (h < 22) return "evening";
-  return "night";
-}
 
 // POST /api/record-duel — append the duel, apply the Bradley–Terry update to
 // user_taste, then return the next duel or the committed result.
@@ -75,7 +67,7 @@ export async function POST(request: NextRequest) {
     dish_b: dishB,
     winner,
     context: {
-      daypart: daypart(now),
+      daypart: currentDaypart(now),
       weekday: now.getUTCDay(),
       mood: session.mood ?? null,
     },

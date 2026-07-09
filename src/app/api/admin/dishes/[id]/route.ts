@@ -26,11 +26,17 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
+  // Preserve the lifecycle/tagging fields when a caller (e.g. the current
+  // edit form) doesn't send them, so an edit can't silently unpublish a dish
+  // or wipe its tags/dayparts/seasons.
+  const b = body as Record<string, unknown>;
+  const update: Record<string, unknown> = { ...parsed.value };
+  for (const key of ["status", "tags", "available_dayparts", "seasons"]) {
+    if (!(key in b)) delete update[key];
+  }
+
   const db = adminClient();
-  const { error } = await db
-    .from("dishes")
-    .update(parsed.value)
-    .eq("id", id);
+  const { error } = await db.from("dishes").update(update).eq("id", id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

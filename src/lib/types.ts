@@ -41,6 +41,16 @@ export interface Restaurant {
   area: string | null;
 }
 
+export type DishStatus = "draft" | "published";
+
+/** Dayparts a dish is available for; empty array means "no restriction". */
+export const DAYPARTS = ["morning", "afternoon", "evening", "night"] as const;
+export type Daypart = (typeof DAYPARTS)[number];
+
+/** Seasons a dish is offered in; empty array means "no restriction". */
+export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
+export type Season = (typeof SEASONS)[number];
+
 export interface Dish {
   id: string;
   restaurant_id: string;
@@ -56,6 +66,10 @@ export interface Dish {
   is_halal: boolean;
   allergens: string[];
   delivery_apps: DeliveryApp[];
+  tags: string[];
+  available_dayparts: string[];
+  seasons: string[];
+  status: DishStatus;
 }
 
 export interface UserConstraints {

@@ -1,4 +1,11 @@
-import { ATTRIBUTE_KEYS, type DeliveryApp, type DishAttributes } from "@/lib/types";
+import {
+  ATTRIBUTE_KEYS,
+  DAYPARTS,
+  SEASONS,
+  type DeliveryApp,
+  type DishAttributes,
+  type DishStatus,
+} from "@/lib/types";
 
 export interface DishInput {
   restaurant_id: string;
@@ -14,6 +21,28 @@ export interface DishInput {
   is_halal: boolean;
   allergens: string[];
   delivery_apps: DeliveryApp[];
+  tags: string[];
+  available_dayparts: string[];
+  seasons: string[];
+  status: DishStatus;
+}
+
+function stringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return Array.from(
+    new Set(
+      v
+        .filter((x): x is string => typeof x === "string")
+        .map((x) => x.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+/** Keep only values that are members of `allowed`. */
+function enumArray(v: unknown, allowed: readonly string[]): string[] {
+  const set = new Set(allowed);
+  return stringArray(v).filter((x) => set.has(x));
 }
 
 function clamp01(n: unknown): number {
@@ -95,6 +124,10 @@ export function parseDishInput(
       is_halal: b.is_halal !== false,
       allergens,
       delivery_apps,
+      tags: stringArray(b.tags),
+      available_dayparts: enumArray(b.available_dayparts, DAYPARTS),
+      seasons: enumArray(b.seasons, SEASONS),
+      status: b.status === "published" ? "published" : "draft",
     },
   };
 }

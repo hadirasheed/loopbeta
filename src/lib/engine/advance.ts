@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Dish, DeliveryApp } from "@/lib/types";
 import { filterEligible } from "./constraints";
 import {
+  currentDaypart,
+  currentSeason,
+  filterByAvailability,
+} from "./time-context";
+import {
   deriveState,
   nextStep,
   type NextStep,
@@ -70,7 +75,15 @@ export async function computePayload(
       loadRestaurantNames(db),
     ]);
 
-  const eligible = filterEligible(dishes, constraints);
+  // Duel pool = published (loadDishes) ∩ available now (daypart/season) ∩
+  // within the user's hard constraints.
+  const now = new Date();
+  const available = filterByAvailability(
+    dishes,
+    currentDaypart(now),
+    currentSeason(now)
+  );
+  const eligible = filterEligible(available, constraints);
   const dishById = new Map(dishes.map((d) => [d.id, d]));
   const state = deriveState(duels);
   const step: NextStep = nextStep(eligible, state, weights);

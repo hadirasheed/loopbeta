@@ -31,11 +31,19 @@ export function mapDish(row: Record<string, unknown>): Dish {
     is_halal: row.is_halal !== false,
     allergens: (row.allergens as string[]) ?? [],
     delivery_apps: (row.delivery_apps as Dish["delivery_apps"]) ?? [],
+    tags: (row.tags as string[]) ?? [],
+    available_dayparts: (row.available_dayparts as string[]) ?? [],
+    seasons: (row.seasons as string[]) ?? [],
+    status: (row.status as Dish["status"]) ?? "draft",
   };
 }
 
+/** Load the duel pool: published dishes only. */
 export async function loadDishes(db: SupabaseClient): Promise<Dish[]> {
-  const { data, error } = await db.from("dishes").select("*");
+  const { data, error } = await db
+    .from("dishes")
+    .select("*")
+    .eq("status", "published");
   if (error) throw error;
   return (data ?? []).map(mapDish);
 }
