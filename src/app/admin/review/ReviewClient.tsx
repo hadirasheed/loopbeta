@@ -86,6 +86,50 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
     }
   }
 
+  async function preTag() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    const res = await fetch("/api/admin/tag-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    setBulkBusy(false);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) {
+      setError(data?.error ?? "Tagging failed.");
+      return;
+    }
+    // Apply returned attributes/tags to the tagged dishes in place.
+    const byId = new Map<
+      string,
+      { attributes?: ReviewDish["attributes"]; tags?: string[] }
+    >();
+    for (const r of data.results as {
+      id: string;
+      ok: boolean;
+      attributes?: ReviewDish["attributes"];
+      tags?: string[];
+    }[]) {
+      if (r.ok && r.attributes) byId.set(r.id, r);
+    }
+    setDishes((prev) =>
+      prev.map((d) => {
+        const r = byId.get(d.id);
+        return r?.attributes
+          ? { ...d, attributes: r.attributes, tags: r.tags ?? d.tags }
+          : d;
+      })
+    );
+    if (data.failed > 0) {
+      setError(
+        `${data.failed} dish(es) couldn't be auto-tagged — tag them manually.`
+      );
+    }
+  }
+
   async function bulkApply(patch: Record<string, unknown>, publish = false) {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -152,6 +196,7 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
             });
           }}
           onPublish={() => bulkApply({ status: "published" }, true)}
+          onPreTag={preTag}
           onClear={() => setSelected(new Set())}
         />
       )}
@@ -370,6 +415,7 @@ function BulkBar({
   onSetSeasons,
   onAddTag,
   onPublish,
+  onPreTag,
   onClear,
 }: {
   count: number;
@@ -378,6 +424,7 @@ function BulkBar({
   onSetSeasons: (vals: string[]) => void;
   onAddTag: (tag: string) => void;
   onPublish: () => void;
+  onPreTag: () => void;
   onClear: () => void;
 }) {
   const [dayparts, setDayparts] = useState<string[]>([]);
@@ -447,13 +494,22 @@ function BulkBar({
         </div>
       </div>
 
-      <button
-        disabled={busy}
-        onClick={onPublish}
-        className="self-start rounded-full bg-black px-5 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-      >
-        {busy ? "Working…" : `Publish ${count} selected`}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          disabled={busy}
+          onClick={onPreTag}
+          className="rounded-full border border-black/15 px-5 py-2 text-sm font-medium disabled:opacity-50 dark:border-white/20"
+        >
+          {busy ? "Working…" : `✨ Pre-tag ${count} with AI`}
+        </button>
+        <button
+          disabled={busy}
+          onClick={onPublish}
+          className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+        >
+          {busy ? "Working…" : `Publish ${count} selected`}
+        </button>
+      </div>
     </div>
   );
 }

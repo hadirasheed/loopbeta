@@ -65,6 +65,12 @@ export default async function AdminHome() {
               )}
             </Link>
             <Link
+              href="/admin/ai-settings"
+              className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20"
+            >
+              AI settings
+            </Link>
+            <Link
               href="/admin/dishes/new"
               className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
             >
