@@ -43,6 +43,10 @@ export default async function EditDishPage(
     is_halal: dish.is_halal ?? true,
     allergens: (dish.allergens as string[] | null) ?? [],
     delivery_apps: (dish.delivery_apps as DeliveryApp[] | null) ?? [],
+    tags: (dish.tags as string[] | null) ?? [],
+    available_dayparts: (dish.available_dayparts as string[] | null) ?? [],
+    seasons: (dish.seasons as string[] | null) ?? [],
+    status: dish.status === "published" ? "published" : "draft",
   };
 
   return (

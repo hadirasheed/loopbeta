@@ -12,7 +12,9 @@ export default async function AdminHome() {
   const [{ data: dishes }, { data: restaurants }] = await Promise.all([
     supabase
       .from("dishes")
-      .select("id, name, price, cuisine, image_url, restaurant:restaurants(name)")
+      .select(
+        "id, name, price, cuisine, image_url, status, restaurant:restaurants(name)"
+      )
       .order("name"),
     supabase.from("restaurants").select("id, name, area").order("name"),
   ]);
@@ -27,9 +29,12 @@ export default async function AdminHome() {
       price: d.price,
       cuisine: d.cuisine,
       image_url: d.image_url,
+      status: d.status === "published" ? "published" : "draft",
       restaurantName: restaurantName ?? "—",
     };
   });
+
+  const draftCount = dishRows.filter((d) => d.status === "draft").length;
 
   return (
     <main className="flex flex-1 flex-col gap-10 p-5">
@@ -41,12 +46,31 @@ export default async function AdminHome() {
               ({dishRows.length})
             </span>
           </h1>
-          <Link
-            href="/admin/dishes/new"
-            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
-          >
-            + Add dish
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/import"
+              className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20"
+            >
+              Import .xlsx
+            </Link>
+            <Link
+              href="/admin/review"
+              className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20"
+            >
+              Review drafts
+              {draftCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 text-xs text-white">
+                  {draftCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              href="/admin/dishes/new"
+              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
+            >
+              + Add dish
+            </Link>
+          </div>
         </div>
         <DishList dishes={dishRows} />
       </section>

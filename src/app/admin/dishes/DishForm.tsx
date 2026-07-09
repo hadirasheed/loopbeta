@@ -4,8 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ATTRIBUTE_KEYS,
+  DAYPARTS,
+  SEASONS,
   type AttributeKey,
   type DishAttributes,
+  type DishStatus,
   type DeliveryApp,
   type Restaurant,
   ALLERGEN_OPTIONS,
@@ -26,6 +29,10 @@ export interface DishFormValues {
   is_halal: boolean;
   allergens: string[];
   delivery_apps: DeliveryApp[];
+  tags: string[];
+  available_dayparts: string[];
+  seasons: string[];
+  status: DishStatus;
 }
 
 const ATTR_LABELS: Record<AttributeKey, string> = {
@@ -54,6 +61,10 @@ export function emptyValues(): DishFormValues {
     is_halal: true,
     allergens: [],
     delivery_apps: [],
+    tags: [],
+    available_dayparts: [],
+    seasons: [],
+    status: "draft",
   };
 }
 
@@ -72,6 +83,7 @@ export default function DishForm({
   const [newRestaurant, setNewRestaurant] = useState(false);
   const [newRName, setNewRName] = useState("");
   const [newRArea, setNewRArea] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
 
   const isEdit = Boolean(v.id);
 
@@ -93,6 +105,26 @@ export default function DishForm({
         ? prev.allergens.filter((x) => x !== a)
         : [...prev.allergens, a],
     }));
+  }
+
+  function toggleIn(field: "available_dayparts" | "seasons", val: string) {
+    setV((prev) => {
+      const cur = prev[field];
+      return {
+        ...prev,
+        [field]: cur.includes(val)
+          ? cur.filter((x) => x !== val)
+          : [...cur, val],
+      };
+    });
+  }
+
+  function addTag(raw: string) {
+    const t = raw.trim().toLowerCase();
+    if (!t) return;
+    setV((prev) =>
+      prev.tags.includes(t) ? prev : { ...prev, tags: [...prev.tags, t] }
+    );
   }
 
   async function createRestaurant() {
@@ -145,6 +177,10 @@ export default function DishForm({
       is_halal: v.is_halal,
       allergens: v.allergens,
       delivery_apps: v.delivery_apps.filter((a) => a.app && a.url),
+      tags: v.tags,
+      available_dayparts: v.available_dayparts,
+      seasons: v.seasons,
+      status: v.status,
     };
     const res = await fetch(
       isEdit ? `/api/admin/dishes/${v.id}` : "/api/admin/dishes",
@@ -368,6 +404,88 @@ export default function DishForm({
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium">Available dayparts</legend>
+        <p className="mb-2 text-xs text-black/40 dark:text-white/40">
+          Leave empty for no restriction (shown at any time of day).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {DAYPARTS.map((d) => (
+            <Chip
+              key={d}
+              label={d}
+              active={v.available_dayparts.includes(d)}
+              onClick={() => toggleIn("available_dayparts", d)}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium">Seasons</legend>
+        <p className="mb-2 text-xs text-black/40 dark:text-white/40">
+          Leave empty for no restriction (shown in any season).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SEASONS.map((s) => (
+            <Chip
+              key={s}
+              label={s}
+              active={v.seasons.includes(s)}
+              onClick={() => toggleIn("seasons", s)}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium">Tags</legend>
+        <div className="mb-2 flex flex-wrap gap-2">
+          {v.tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center gap-1 rounded-full bg-black/5 px-3 py-1.5 text-sm dark:bg-white/10"
+            >
+              {t}
+              <button
+                type="button"
+                onClick={() =>
+                  set(
+                    "tags",
+                    v.tags.filter((x) => x !== t)
+                  )
+                }
+                className="text-black/40 hover:text-red-600 dark:text-white/40"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          {v.tags.length === 0 && (
+            <span className="text-xs text-black/40 dark:text-white/40">
+              No tags yet.
+            </span>
+          )}
+        </div>
+        <input
+          className={inputCls}
+          value={tagDraft}
+          onChange={(e) => setTagDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              addTag(tagDraft);
+              setTagDraft("");
+            }
+          }}
+          onBlur={() => {
+            addTag(tagDraft);
+            setTagDraft("");
+          }}
+          placeholder="Type a tag and press Enter (e.g. comfort-food)"
+        />
+      </fieldset>
+
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-medium">Delivery apps</legend>
         {v.delivery_apps.map((app, i) => (
@@ -415,6 +533,29 @@ export default function DishForm({
         </p>
       )}
 
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium">Status</legend>
+        <div className="flex gap-2">
+          {(["draft", "published"] as const).map((s) => (
+            <button
+              type="button"
+              key={s}
+              onClick={() => set("status", s)}
+              className={`rounded-full border px-4 py-1.5 text-sm capitalize transition ${
+                v.status === s
+                  ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
+                  : "border-black/15 dark:border-white/20"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-black/40 dark:text-white/40">
+          Only published dishes enter the duel pool.
+        </p>
+      </fieldset>
+
       <div className="sticky bottom-0 flex gap-3 border-t border-black/10 bg-background py-4 dark:border-white/10">
         <button
           type="button"
@@ -433,6 +574,30 @@ export default function DishForm({
         </button>
       </div>
     </div>
+  );
+}
+
+function Chip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-sm capitalize transition ${
+        active
+          ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
+          : "border-black/15 dark:border-white/20"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

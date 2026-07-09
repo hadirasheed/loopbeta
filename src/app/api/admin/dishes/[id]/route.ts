@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-guard";
 import { adminClient } from "@/lib/supabase/admin";
-import { parseDishInput } from "@/lib/dish-input";
+import { parseDishInput, parseDishPatch } from "@/lib/dish-input";
 
 // PUT /api/admin/dishes/[id] — update a dish (admin only).
 export async function PUT(
@@ -37,6 +37,42 @@ export async function PUT(
 
   const db = adminClient();
   const { error } = await db.from("dishes").update(update).eq("id", id);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ id });
+}
+
+// PATCH /api/admin/dishes/[id] — partial update (review screen: attributes,
+// tags, dayparts, seasons, status). Admin only.
+export async function PATCH(
+  request: NextRequest,
+  ctx: RouteContext<"/api/admin/dishes/[id]">
+) {
+  const guard = await requireAdmin();
+  if (!guard.ok) {
+    return NextResponse.json({ error: "Forbidden" }, { status: guard.status });
+  }
+  const { id } = await ctx.params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = parseDishPatch(body);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  if (Object.keys(parsed.patch).length === 0) {
+    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+  }
+
+  const db = adminClient();
+  const { error } = await db.from("dishes").update(parsed.patch).eq("id", id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

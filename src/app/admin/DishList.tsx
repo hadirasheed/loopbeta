@@ -10,24 +10,30 @@ export interface DishRow {
   price: number | null;
   cuisine: string | null;
   image_url: string | null;
+  status: "draft" | "published";
   restaurantName: string;
 }
+
+type StatusFilter = "all" | "published" | "draft";
 
 export default function DishList({ dishes }: { dishes: DishRow[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return dishes;
-    return dishes.filter(
-      (d) =>
+    return dishes.filter((d) => {
+      if (statusFilter !== "all" && d.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
         d.name.toLowerCase().includes(q) ||
         d.restaurantName.toLowerCase().includes(q) ||
         (d.cuisine ?? "").toLowerCase().includes(q)
-    );
-  }, [dishes, query]);
+      );
+    });
+  }, [dishes, query, statusFilter]);
 
   async function remove(d: DishRow) {
     if (!confirm(`Delete "${d.name}"? This can't be undone.`)) return;
@@ -49,8 +55,24 @@ export default function DishList({ dishes }: { dishes: DishRow[] }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search by dish, restaurant, or cuisine…"
-        className="mb-4 w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-black dark:border-white/20 dark:focus:border-white"
+        className="mb-3 w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-black dark:border-white/20 dark:focus:border-white"
       />
+
+      <div className="mb-4 flex gap-2">
+        {(["all", "published", "draft"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition ${
+              statusFilter === s
+                ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
+                : "border-black/15 dark:border-white/20"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
 
       {filtered.length === 0 ? (
         <p className="py-8 text-center text-sm text-black/40 dark:text-white/40">
@@ -67,7 +89,14 @@ export default function DishList({ dishes }: { dishes: DishRow[] }) {
                 className="h-12 w-12 shrink-0 rounded-lg bg-black/5 object-cover dark:bg-white/10"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{d.name}</p>
+                <p className="flex items-center gap-2 truncate text-sm font-medium">
+                  {d.name}
+                  {d.status === "draft" && (
+                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      Draft
+                    </span>
+                  )}
+                </p>
                 <p className="truncate text-xs text-black/50 dark:text-white/50">
                   {d.restaurantName}
                   {d.cuisine ? ` · ${d.cuisine}` : ""}

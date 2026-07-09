@@ -131,3 +131,46 @@ export function parseDishInput(
     },
   };
 }
+
+/**
+ * Normalize a PARTIAL dish patch: only keys present in the body are returned,
+ * each validated/clamped. Used by the review screen and bulk actions where a
+ * caller updates just attributes / tags / dayparts / seasons / status.
+ */
+export function parseDishPatch(
+  body: unknown
+): { ok: true; patch: Record<string, unknown> } | { ok: false; error: string } {
+  if (typeof body !== "object" || body === null) {
+    return { ok: false, error: "Expected a JSON object." };
+  }
+  const b = body as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+
+  if ("attributes" in b) {
+    const raw =
+      typeof b.attributes === "object" && b.attributes !== null
+        ? (b.attributes as Record<string, unknown>)
+        : {};
+    patch.attributes = Object.fromEntries(
+      ATTRIBUTE_KEYS.map((k) => [k, clamp01(raw[k])])
+    ) as DishAttributes;
+  }
+  if ("tags" in b) patch.tags = stringArray(b.tags);
+  if ("available_dayparts" in b) {
+    patch.available_dayparts = enumArray(b.available_dayparts, DAYPARTS);
+  }
+  if ("seasons" in b) patch.seasons = enumArray(b.seasons, SEASONS);
+  if ("status" in b) {
+    if (b.status !== "draft" && b.status !== "published") {
+      return { ok: false, error: "status must be 'draft' or 'published'." };
+    }
+    patch.status = b.status;
+  }
+  if ("name" in b) {
+    const name = str(b.name);
+    if (!name) return { ok: false, error: "Dish name cannot be empty." };
+    patch.name = name;
+  }
+
+  return { ok: true, patch };
+}
