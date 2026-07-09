@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveConstraints, ALLERGEN_OPTIONS } from "./actions";
+import { saveConstraints } from "./actions";
+import { ALLERGEN_OPTIONS } from "@/lib/types";
 
 interface Props {
   initial: {

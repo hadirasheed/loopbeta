@@ -2,21 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { coldStartWeights } from "@/lib/types";
+import { coldStartWeights, ALLERGEN_OPTIONS } from "@/lib/types";
 
-export const ALLERGEN_OPTIONS = [
-  "dairy",
-  "gluten",
-  "egg",
-  "peanut",
-  "nuts",
-  "soy",
-  "shellfish",
-  "fish",
-  "sesame",
-] as const;
-
-export type OnboardingResult = { error: string } | undefined;
+type OnboardingResult = { error: string } | undefined;
 
 /**
  * Saves the user's hard constraints (permanent filters) and ensures a

@@ -8,8 +8,8 @@ import {
   type DishAttributes,
   type DeliveryApp,
   type Restaurant,
+  ALLERGEN_OPTIONS,
 } from "@/lib/types";
-import { ALLERGEN_OPTIONS } from "@/app/onboarding/actions";
 
 export interface DishFormValues {
   id?: string;

@@ -11,6 +11,19 @@ export const ATTRIBUTE_KEYS = [
 
 export type AttributeKey = (typeof ATTRIBUTE_KEYS)[number];
 
+/** Allergens offered in onboarding and tagged on dishes. Client-safe. */
+export const ALLERGEN_OPTIONS = [
+  "dairy",
+  "gluten",
+  "egg",
+  "peanut",
+  "nuts",
+  "soy",
+  "shellfish",
+  "fish",
+  "sesame",
+] as const;
+
 /** Each attribute normalized 0..1. */
 export type DishAttributes = Record<AttributeKey, number>;
 
