@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Restaurant } from "@/lib/types";
@@ -45,7 +45,23 @@ export default function ImportClient({
   const [done, setDone] = useState<{ imported: number; skipped: number } | null>(
     null
   );
-  const pg = usePagination(parsed?.items ?? [], 25);
+  const [previewQuery, setPreviewQuery] = useState("");
+  const [errorsOnly, setErrorsOnly] = useState(false);
+
+  const previewItems = useMemo(() => {
+    const items = parsed?.items ?? [];
+    const q = previewQuery.trim().toLowerCase();
+    return items.filter((it) => {
+      if (errorsOnly && it.errors.length === 0) return false;
+      if (!q) return true;
+      return (
+        it.data.name.toLowerCase().includes(q) ||
+        (it.data.cuisine ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [parsed, previewQuery, errorsOnly]);
+
+  const pg = usePagination(previewItems, 25);
 
   async function createRestaurant() {
     if (!newName.trim()) return;
@@ -245,6 +261,32 @@ export default function ImportClient({
             3. Preview — {parsed.validCount} valid, {parsed.invalidCount} with
             errors
           </h2>
+
+          {/* Search / filter the parsed rows */}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={previewQuery}
+              onChange={(e) => setPreviewQuery(e.target.value)}
+              placeholder="Search rows by name or cuisine…"
+              className={`${inputCls} max-w-xs`}
+            />
+            <label className="flex items-center gap-2 text-xs text-black/60 dark:text-white/60">
+              <input
+                type="checkbox"
+                checked={errorsOnly}
+                onChange={(e) => setErrorsOnly(e.target.checked)}
+                className="h-4 w-4 accent-black dark:accent-white"
+              />
+              Only rows with errors
+            </label>
+            {(previewQuery || errorsOnly) && (
+              <span className="text-xs text-black/40 dark:text-white/40">
+                {previewItems.length} of {parsed.items.length} rows
+              </span>
+            )}
+          </div>
+
           <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-black/10 text-black/50 dark:border-white/15 dark:text-white/50">
@@ -287,6 +329,11 @@ export default function ImportClient({
               </tbody>
             </table>
           </div>
+          {previewItems.length === 0 && (
+            <p className="py-6 text-center text-xs text-black/40 dark:text-white/40">
+              No rows match your search.
+            </p>
+          )}
           <Pagination state={pg} unit="rows" />
           <button
             onClick={commit}
