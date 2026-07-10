@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,13 +12,18 @@ import {
 } from "@/lib/types";
 import { providerName } from "@/lib/ai/types";
 import { Pagination, usePagination } from "@/components/admin/Pagination";
+import { btnAccent, btnGhost, inputCls } from "@/components/admin/ui";
 
 export interface ActiveModel {
   provider: string;
   model: string;
   label: string | null;
 }
-import { btnAccent, btnGhost, inputCls } from "@/components/admin/ui";
+
+/** A dish is "tagged" once any attribute has moved off the 0.5 default. */
+function isTagged(d: ReviewDish): boolean {
+  return ATTRIBUTE_KEYS.some((k) => d.attributes[k] !== 0.5);
+}
 
 export interface ReviewDish {
   id: string;
@@ -54,10 +59,25 @@ export default function ReviewClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [bulkTag, setBulkTag] = useState("");
-  const pg = usePagination(dishes, 20);
+  const [query, setQuery] = useState("");
 
-  const allSelected = dishes.length > 0 && dishes.every((d) => selected.has(d.id));
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return dishes;
+    return dishes.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.restaurantName.toLowerCase().includes(q) ||
+        d.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  }, [dishes, query]);
+
+  const pg = usePagination(filtered, 20);
+
+  const allSelected =
+    filtered.length > 0 && filtered.every((d) => selected.has(d.id));
 
   function patchLocal(id: string, patch: Partial<ReviewDish>) {
     setDishes((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -71,7 +91,7 @@ export default function ReviewClient({
     });
   }
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(dishes.map((d) => d.id)));
+    setSelected(allSelected ? new Set() : new Set(filtered.map((d) => d.id)));
   }
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -123,6 +143,7 @@ export default function ReviewClient({
     if (ids.length === 0) return;
     setBulkBusy(true);
     setError(null);
+    setNotice(null);
     const res = await fetch("/api/admin/tag-batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -151,6 +172,12 @@ export default function ReviewClient({
           : d;
       })
     );
+    const tagged = data.tagged ?? byId.size;
+    if (tagged > 0) {
+      setNotice(
+        `✨ AI tagged ${tagged} dish${tagged === 1 ? "" : "es"} — review the weights and tags, then publish.`
+      );
+    }
     if (data.failed > 0) {
       setError(`${data.failed} dish(es) couldn't be auto-tagged — tag them manually.`);
     }
@@ -221,6 +248,11 @@ export default function ReviewClient({
 
   return (
     <div className="flex flex-col gap-3">
+      {notice && (
+        <p className="rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700">
+          {notice}
+        </p>
+      )}
       {error && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
           {error}
@@ -250,6 +282,15 @@ export default function ReviewClient({
         </Link>
       </div>
 
+      {/* Search */}
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search drafts by name, restaurant, or tag…"
+        className={`${inputCls} max-w-sm`}
+      />
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2">
         <label className="flex items-center gap-2 text-sm font-medium text-ink">
@@ -261,7 +302,10 @@ export default function ReviewClient({
           />
           Select all
         </label>
-        <span className="text-sm text-ink/50">{selected.size} selected</span>
+        <span className="text-sm text-ink/50">
+          {query ? `${filtered.length} of ${dishes.length} · ` : ""}
+          {selected.size} selected
+        </span>
 
         {selected.size > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -298,13 +342,22 @@ export default function ReviewClient({
 
       {/* List */}
       <div className="overflow-hidden rounded-xl border border-black/10 bg-white">
+        {filtered.length === 0 && (
+          <p className="px-3 py-8 text-center text-sm text-ink/40">
+            No drafts match “{query}”.
+          </p>
+        )}
         {pg.pageItems.map((d) => {
           const open = expanded.has(d.id);
-          const tagged = ATTRIBUTE_KEYS.some((k) => d.attributes[k] !== 0.5);
+          const tagged = isTagged(d);
           return (
             <div key={d.id} className="border-b border-black/5 last:border-0">
-              {/* compact row */}
-              <div className="flex items-center gap-3 px-3 py-2.5">
+              {/* compact row — tinted green once the dish has been tagged */}
+              <div
+                className={`flex items-center gap-3 px-3 py-2.5 ${
+                  tagged ? "bg-green-500/[0.06]" : ""
+                }`}
+              >
                 <input
                   type="checkbox"
                   checked={selected.has(d.id)}
