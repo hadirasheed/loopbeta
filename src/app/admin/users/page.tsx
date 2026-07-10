@@ -20,7 +20,10 @@ export default async function UsersPage() {
       db.from("profiles").select("user_id, name"),
       db.from("user_constraints").select("user_id, is_veg, is_halal, allergens"),
       db.from("user_taste").select("user_id, weights, updated_at"),
-      db.from("sessions").select("user_id, started_at"),
+      db
+        .from("sessions")
+        .select("user_id, started_at, committed_dish_id, mood")
+        .order("started_at", { ascending: false }),
     ]);
 
   const nameBy = new Map(
@@ -36,21 +39,27 @@ export default async function UsersPage() {
     ])
   );
 
-  // Sessions → count + last-used per user.
-  const usage = new Map<string, { count: number; last: string | null }>();
+  // Sessions (already newest-first) → per-user log.
+  const logsBy = new Map<
+    string,
+    { started_at: string; decided: boolean; mood: string | null }[]
+  >();
   for (const s of sessions.data ?? []) {
     const id = s.user_id as string;
-    const started = s.started_at as string;
-    const cur = usage.get(id) ?? { count: 0, last: null };
-    cur.count += 1;
-    if (!cur.last || started > cur.last) cur.last = started;
-    usage.set(id, cur);
+    const arr = logsBy.get(id) ?? [];
+    arr.push({
+      started_at: s.started_at as string,
+      decided: Boolean(s.committed_dish_id),
+      mood: (s.mood as string | null) ?? null,
+    });
+    logsBy.set(id, arr);
   }
 
   const rows: UserRow[] = (authData?.users ?? []).map((u) => {
     const weights = tasteBy.get(u.id);
     const c = constrBy.get(u.id);
-    const use = usage.get(u.id) ?? { count: 0, last: null };
+    const sessionLog = logsBy.get(u.id) ?? [];
+    const use = { count: sessionLog.length, last: sessionLog[0]?.started_at ?? null };
 
     // Learned taste: variance starts at 1 (0% learned) and shrinks with use.
     let avgVar = 1;
@@ -77,6 +86,11 @@ export default async function UsersPage() {
       allergens: (c?.allergens as string[] | undefined) ?? [],
       learnedPct,
       means,
+      log: sessionLog.slice(0, 50).map((s) => ({
+        at: kuwaitTime(s.started_at),
+        decided: s.decided,
+        mood: s.mood,
+      })),
     };
   });
 

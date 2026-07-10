@@ -18,6 +18,7 @@ export interface UserRow {
   allergens: string[];
   learnedPct: number;
   means: { key: AttributeKey; mean: number }[];
+  log: { at: string; decided: boolean; mood: string | null }[];
 }
 
 const ATTR_LABEL: Record<AttributeKey, string> = {
@@ -192,6 +193,54 @@ export default function UsersTable({ rows }: { rows: UserRow[] }) {
                                 attribute, left when they prefer less.
                               </p>
                             </div>
+                          </div>
+
+                          <div className="mt-6">
+                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">
+                              Usage log ({u.sessions})
+                            </h3>
+                            {u.log.length === 0 ? (
+                              <p className="text-xs text-ink/40">
+                                No sessions yet.
+                              </p>
+                            ) : (
+                              <ol className="max-h-60 overflow-y-auto rounded-lg border border-black/10">
+                                {u.log.map((s, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex items-center justify-between gap-3 border-b border-black/5 px-3 py-2 text-xs last:border-0"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="tabular-nums text-ink/40">
+                                        {u.sessions - i}.
+                                      </span>
+                                      <span className="text-ink/70">{s.at}</span>
+                                    </span>
+                                    <span className="flex items-center gap-2">
+                                      {s.mood && (
+                                        <span className="capitalize text-ink/40">
+                                          {s.mood}
+                                        </span>
+                                      )}
+                                      {s.decided ? (
+                                        <span className="rounded-full bg-green-500/15 px-2 py-0.5 font-medium text-green-700">
+                                          Decided
+                                        </span>
+                                      ) : (
+                                        <span className="rounded-full bg-black/5 px-2 py-0.5 font-medium text-ink/40">
+                                          No pick
+                                        </span>
+                                      )}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                            {u.sessions > u.log.length && (
+                              <p className="mt-1 text-[11px] text-ink/40">
+                                Showing the latest {u.log.length} of {u.sessions}.
+                              </p>
+                            )}
                           </div>
                         </td>
                       </tr>
