@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     model?: unknown;
     label?: unknown;
     apiKey?: unknown;
+    tokenBudget?: unknown;
   };
   try {
     body = await request.json();
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest) {
   const model = typeof body.model === "string" ? body.model.trim() : "";
   const label = typeof body.label === "string" ? body.label.trim() : "";
   const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+  const tokenBudget =
+    typeof body.tokenBudget === "number" && Number.isFinite(body.tokenBudget)
+      ? Math.max(0, Math.round(body.tokenBudget))
+      : null;
 
   if (!SUPPORTED_PROVIDERS.includes(provider)) {
     return NextResponse.json({ error: "Unsupported provider" }, { status: 400 });
@@ -59,6 +64,7 @@ export async function POST(request: NextRequest) {
       model,
       label,
       apiKey,
+      tokenBudget,
     });
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {

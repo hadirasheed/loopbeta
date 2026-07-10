@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ATTRIBUTE_KEYS,
   ATTRIBUTE_GUIDE,
@@ -9,7 +10,14 @@ import {
   DAYPARTS,
   type DishAttributes,
 } from "@/lib/types";
+import { providerName } from "@/lib/ai/types";
 import { Pagination, usePagination } from "@/components/admin/Pagination";
+
+export interface ActiveModel {
+  provider: string;
+  model: string;
+  label: string | null;
+}
 import { btnAccent, btnGhost, inputCls } from "@/components/admin/ui";
 
 export interface ReviewDish {
@@ -32,7 +40,13 @@ function toggleArr(arr: string[], val: string) {
   return arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
 }
 
-export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[] }) {
+export default function ReviewClient({
+  dishes: initial,
+  activeModel,
+}: {
+  dishes: ReviewDish[];
+  activeModel: ActiveModel | null;
+}) {
   const router = useRouter();
   const [dishes, setDishes] = useState(initial);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -213,6 +227,29 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
         </p>
       )}
 
+      {/* Active tagging model banner */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-xs">
+        {activeModel ? (
+          <span className="text-ink/60">
+            🤖 Pre-tagging uses{" "}
+            <span className="font-semibold text-ink">
+              {providerName(activeModel.provider)}
+            </span>{" "}
+            · <code className="rounded bg-black/[0.04] px-1">{activeModel.model}</code>
+          </span>
+        ) : (
+          <span className="text-amber-700">
+            No AI model is active — “Pre-tag with AI” is unavailable.
+          </span>
+        )}
+        <Link
+          href="/admin/ai-settings"
+          className="ml-auto font-medium text-ink/60 underline-offset-2 hover:underline"
+        >
+          {activeModel ? "Change model" : "Set one up"} →
+        </Link>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2">
         <label className="flex items-center gap-2 text-sm font-medium text-ink">
@@ -228,7 +265,12 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
 
         {selected.size > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button className={btnGhost} disabled={bulkBusy} onClick={preTag}>
+            <button
+              className={btnGhost}
+              disabled={bulkBusy || !activeModel}
+              title={activeModel ? undefined : "Set an active AI model first"}
+              onClick={preTag}
+            >
               {bulkBusy ? "Working…" : "✨ Pre-tag with AI"}
             </button>
             <DaypartMenu disabled={bulkBusy} onApply={bulkSetDayparts} />

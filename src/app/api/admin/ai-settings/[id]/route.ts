@@ -1,11 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-guard";
 import { adminClient } from "@/lib/supabase/admin";
-import { setEnabled, setActive, deleteProvider } from "@/lib/ai/providers";
+import {
+  setEnabled,
+  setActive,
+  updateProvider,
+  resetUsage,
+  deleteProvider,
+} from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 
-// PATCH /api/admin/ai-settings/[id] — toggle enabled, or mark active-for-tagging.
+// PATCH /api/admin/ai-settings/[id] — toggle enabled/active, edit fields, or
+// reset usage counters.
 export async function PATCH(
   request: NextRequest,
   ctx: RouteContext<"/api/admin/ai-settings/[id]">
@@ -16,7 +23,15 @@ export async function PATCH(
   }
   const { id } = await ctx.params;
 
-  let body: { is_enabled?: unknown; activate?: unknown };
+  let body: {
+    is_enabled?: unknown;
+    activate?: unknown;
+    model?: unknown;
+    label?: unknown;
+    apiKey?: unknown;
+    tokenBudget?: unknown;
+    resetUsage?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -28,9 +43,35 @@ export async function PATCH(
     if (typeof body.is_enabled === "boolean") {
       await setEnabled(db, id, body.is_enabled);
     }
-    if (body.activate === true) {
-      await setActive(db, id);
+    if (typeof body.activate === "boolean") {
+      await setActive(db, id, body.activate);
     }
+    if (body.resetUsage === true) {
+      await resetUsage(db, id);
+    }
+
+    // Field edits (model / label / key / budget).
+    const edit: {
+      model?: string;
+      label?: string;
+      apiKey?: string;
+      tokenBudget?: number | null;
+    } = {};
+    if (typeof body.model === "string") edit.model = body.model;
+    if (typeof body.label === "string") edit.label = body.label;
+    if (typeof body.apiKey === "string" && body.apiKey.trim()) {
+      edit.apiKey = body.apiKey;
+    }
+    if (body.tokenBudget !== undefined) {
+      edit.tokenBudget =
+        typeof body.tokenBudget === "number" && Number.isFinite(body.tokenBudget)
+          ? Math.max(0, Math.round(body.tokenBudget))
+          : null;
+    }
+    if (Object.keys(edit).length > 0) {
+      await updateProvider(db, id, edit);
+    }
+
     return NextResponse.json({ id });
   } catch (e) {
     return NextResponse.json(

@@ -1,8 +1,14 @@
 import { ATTRIBUTE_KEYS, type DishAttributes } from "@/lib/types";
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface TagResult {
   attributes: DishAttributes;
   tags: string[];
+  usage?: TokenUsage;
 }
 
 export interface TagContext {
@@ -10,7 +16,15 @@ export interface TagContext {
   apiKey: string;
 }
 
-/** One provider adapter. `tag` throws on a malformed/unusable reply. */
+/** A successful health check against a provider + model + key. */
+export interface PingResult {
+  ok: true;
+  latencyMs: number;
+  usage?: TokenUsage;
+  reply?: string;
+}
+
+/** One provider adapter. `tag`/`ping` throw with a friendly message on failure. */
 export interface ProviderAdapter {
   provider: string;
   tag(
@@ -18,6 +32,73 @@ export interface ProviderAdapter {
     description: string | null,
     ctx: TagContext
   ): Promise<TagResult>;
+  ping(ctx: TagContext): Promise<PingResult>;
+}
+
+/**
+ * Client-safe presentation metadata per provider — powers the setup form's
+ * guidance (key placeholder, where to get a key, example model ids, docs).
+ * Kept here (no server-only imports) so the settings UI can import it.
+ */
+export interface ProviderMeta {
+  slug: string;
+  name: string;
+  blurb: string;
+  keyPlaceholder: string;
+  keyPrefixHint: string | null;
+  getKeyUrl: string;
+  docsUrl: string;
+  defaultModel: string;
+  exampleModels: string[];
+}
+
+export const PROVIDER_META: Record<string, ProviderMeta> = {
+  anthropic: {
+    slug: "anthropic",
+    name: "Claude (Anthropic)",
+    blurb: "Anthropic's Claude models. Great instruction-following for tagging.",
+    keyPlaceholder: "sk-ant-…",
+    keyPrefixHint: "sk-ant-",
+    getKeyUrl: "https://console.anthropic.com/settings/keys",
+    docsUrl: "https://docs.anthropic.com/en/docs/about-claude/models",
+    defaultModel: "claude-haiku-4-5-20251001",
+    exampleModels: [
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-5",
+      "claude-opus-4-8",
+    ],
+  },
+  openai: {
+    slug: "openai",
+    name: "OpenAI",
+    blurb: "OpenAI GPT models via the standard chat completions API.",
+    keyPlaceholder: "sk-…",
+    keyPrefixHint: "sk-",
+    getKeyUrl: "https://platform.openai.com/api-keys",
+    docsUrl: "https://platform.openai.com/docs/models",
+    defaultModel: "gpt-4o-mini",
+    exampleModels: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
+  },
+  openrouter: {
+    slug: "openrouter",
+    name: "OpenRouter",
+    blurb: "One key, many models (Claude, GPT, Llama, …) routed through OpenRouter.",
+    keyPlaceholder: "sk-or-…",
+    keyPrefixHint: "sk-or-",
+    getKeyUrl: "https://openrouter.ai/keys",
+    docsUrl: "https://openrouter.ai/models",
+    defaultModel: "anthropic/claude-3.5-haiku",
+    exampleModels: [
+      "anthropic/claude-3.5-haiku",
+      "openai/gpt-4o-mini",
+      "meta-llama/llama-3.1-70b-instruct",
+    ],
+  },
+};
+
+/** Human-readable provider name, falling back to the slug. */
+export function providerName(slug: string): string {
+  return PROVIDER_META[slug]?.name ?? slug;
 }
 
 function clamp01(n: unknown): number {

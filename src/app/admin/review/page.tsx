@@ -1,12 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
+import { adminClient } from "@/lib/supabase/admin";
+import { activeTaggerInfo } from "@/lib/ai/providers";
 import { ATTRIBUTE_KEYS, type DishAttributes } from "@/lib/types";
 import { PageHeader } from "@/components/admin/ui";
 import ReviewClient, { type ReviewDish } from "./ReviewClient";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default async function ReviewPage() {
   const supabase = await createClient();
+  // llm_providers is service-role only (RLS with no policies).
+  const activeModel = await activeTaggerInfo(adminClient());
 
   const { data } = await supabase
     .from("dishes")
@@ -47,7 +52,7 @@ export default async function ReviewPage() {
           No drafts to review. Imported or newly added dishes show up here.
         </p>
       ) : (
-        <ReviewClient dishes={dishes} />
+        <ReviewClient dishes={dishes} activeModel={activeModel} />
       )}
     </div>
   );

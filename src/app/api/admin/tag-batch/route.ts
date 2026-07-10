@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-guard";
 import { adminClient } from "@/lib/supabase/admin";
-import { resolveTagger } from "@/lib/ai/providers";
+import { resolveTagger, recordUsage } from "@/lib/ai/providers";
 import type { DishAttributes } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -65,13 +65,20 @@ export async function POST(request: NextRequest) {
   }
 
   const results: ItemResult[] = [];
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let requests = 0;
+  let lastError: string | null = null;
   for (const dish of dishes ?? []) {
     try {
-      const { attributes, tags } = await tagger.adapter.tag(
+      const { attributes, tags, usage } = await tagger.adapter.tag(
         dish.name,
         dish.description ?? null,
         tagger.ctx
       );
+      requests += 1;
+      inputTokens += usage?.inputTokens ?? 0;
+      outputTokens += usage?.outputTokens ?? 0;
       const { error: upErr } = await db
         .from("dishes")
         .update({ attributes, tags })
@@ -86,16 +93,29 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) {
       // Flag for manual tagging; keep going through the batch.
+      lastError = e instanceof Error ? e.message : "Tagging failed";
       results.push({
         id: dish.id,
         name: dish.name,
         ok: false,
-        error: e instanceof Error ? e.message : "Tagging failed",
+        error: lastError,
       });
     }
   }
 
   const tagged = results.filter((r) => r.ok).length;
+
+  // Record usage on the active model (best-effort; never fail the batch on it).
+  try {
+    await recordUsage(db, tagger.id, {
+      usage: { inputTokens, outputTokens },
+      requests,
+      ok: tagged > 0 ? true : lastError ? false : undefined,
+      error: tagged === 0 ? lastError : null,
+    });
+  } catch {
+    /* usage accounting is non-critical */
+  }
   return NextResponse.json({
     results,
     tagged,
