@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ATTRIBUTE_KEYS, type DishAttributes } from "@/lib/types";
+import { PageHeader } from "@/components/admin/ui";
 import ReviewClient, { type ReviewDish } from "./ReviewClient";
 
 export const dynamic = "force-dynamic";
@@ -37,29 +37,19 @@ export default async function ReviewPage() {
   });
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">
-          Review drafts{" "}
-          <span className="text-sm font-normal text-black/40 dark:text-white/40">
-            ({dishes.length})
-          </span>
-        </h1>
-        <Link
-          href="/admin"
-          className="text-sm text-black/50 underline underline-offset-4 dark:text-white/50"
-        >
-          Back to catalog
-        </Link>
-      </div>
+    <div className="mx-auto max-w-3xl p-6 md:p-8">
+      <PageHeader
+        title="Review drafts"
+        description={`${dishes.length} awaiting review — set attributes, tag, and publish.`}
+      />
 
       {dishes.length === 0 ? (
-        <p className="py-12 text-center text-sm text-black/40 dark:text-white/40">
+        <p className="rounded-xl border border-black/10 bg-white py-12 text-center text-sm text-ink/40">
           No drafts to review. Imported or newly added dishes show up here.
         </p>
       ) : (
         <ReviewClient dishes={dishes} />
       )}
-    </main>
+    </div>
   );
 }

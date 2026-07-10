@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import DishForm, { emptyValues } from "../DishForm";
 import type { Restaurant } from "@/lib/types";
+import { PageHeader } from "@/components/admin/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,12 @@ export default async function NewDishPage() {
     .order("name");
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-5">
-      <h1 className="text-lg font-semibold">Add dish</h1>
+    <div className="mx-auto max-w-2xl p-6 md:p-8">
+      <PageHeader title="Add dish" />
       <DishForm
         restaurants={(restaurants as Restaurant[] | null) ?? []}
         initial={emptyValues()}
       />
-    </main>
+    </div>
   );
 }

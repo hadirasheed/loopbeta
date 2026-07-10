@@ -1,92 +1,118 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import DishList, { type DishRow } from "./DishList";
-import RestaurantManager from "./RestaurantManager";
-import type { Restaurant } from "@/lib/types";
+import { adminClient } from "@/lib/supabase/admin";
+import { PageHeader, StatCard, btnAccent, btnGhost } from "@/components/admin/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminHome() {
+export default async function AdminOverview() {
   const supabase = await createClient();
 
-  const [{ data: dishes }, { data: restaurants }] = await Promise.all([
+  const [total, published, drafts, restaurants] = await Promise.all([
+    supabase.from("dishes").select("id", { count: "exact", head: true }),
     supabase
       .from("dishes")
-      .select(
-        "id, name, price, cuisine, image_url, status, restaurant:restaurants(name)"
-      )
-      .order("name"),
-    supabase.from("restaurants").select("id, name, area").order("name"),
+      .select("id", { count: "exact", head: true })
+      .eq("status", "published"),
+    supabase
+      .from("dishes")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "draft"),
+    supabase.from("restaurants").select("id", { count: "exact", head: true }),
   ]);
 
-  // Supabase types the embedded relation as an array; flatten to a name.
-  const dishRows: DishRow[] = (dishes ?? []).map((d) => {
-    const rel = d.restaurant as unknown as { name: string } | { name: string }[] | null;
-    const restaurantName = Array.isArray(rel) ? rel[0]?.name : rel?.name;
-    return {
-      id: d.id,
-      name: d.name,
-      price: d.price,
-      cuisine: d.cuisine,
-      image_url: d.image_url,
-      status: d.status === "published" ? "published" : "draft",
-      restaurantName: restaurantName ?? "—",
-    };
-  });
-
-  const draftCount = dishRows.filter((d) => d.status === "draft").length;
+  // llm_providers has RLS with no policies — read the active model via service role.
+  const { data: activeModel } = await adminClient()
+    .from("llm_providers")
+    .select("provider, model, label")
+    .eq("is_active_for_tagging", true)
+    .eq("is_enabled", true)
+    .maybeSingle();
 
   return (
-    <main className="flex flex-1 flex-col gap-10 p-5">
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">
-            Dishes{" "}
-            <span className="text-sm font-normal text-black/40 dark:text-white/40">
-              ({dishRows.length})
-            </span>
-          </h1>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/admin/import"
-              className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20"
-            >
+    <div className="mx-auto max-w-5xl p-6 md:p-8">
+      <PageHeader
+        title="Overview"
+        description="Your catalog at a glance."
+        actions={
+          <>
+            <Link href="/admin/import" className={btnGhost}>
               Import .xlsx
             </Link>
-            <Link
-              href="/admin/review"
-              className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20"
-            >
-              Review drafts
-              {draftCount > 0 && (
-                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 text-xs text-white">
-                  {draftCount}
-                </span>
-              )}
-            </Link>
-            <Link
-              href="/admin/ai-settings"
-              className="rounded-full border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20"
-            >
-              AI settings
-            </Link>
-            <Link
-              href="/admin/dishes/new"
-              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
-            >
+            <Link href="/admin/dishes/new" className={btnAccent}>
               + Add dish
+            </Link>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Total dishes"
+          value={total.count ?? 0}
+          href="/admin/dishes"
+        />
+        <StatCard
+          label="Published"
+          value={published.count ?? 0}
+          hint="In the duel pool"
+          href="/admin/dishes"
+        />
+        <StatCard
+          label="Drafts"
+          value={drafts.count ?? 0}
+          hint="Awaiting review"
+          href="/admin/review"
+        />
+        <StatCard
+          label="Restaurants"
+          value={restaurants.count ?? 0}
+          href="/admin/restaurants"
+        />
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-black/10 bg-white p-5">
+          <h2 className="text-sm font-semibold text-ink">AI tagging</h2>
+          {activeModel ? (
+            <p className="mt-2 text-sm text-ink/60">
+              Active model:{" "}
+              <span className="font-semibold text-ink">
+                {activeModel.label || activeModel.model}
+              </span>{" "}
+              <span className="text-ink/40">({activeModel.provider})</span>
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-ink/60">
+              No active tagging model.{" "}
+              <Link
+                href="/admin/ai-settings"
+                className="font-semibold text-accent-dark underline underline-offset-2"
+              >
+                Configure one →
+              </Link>
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-black/10 bg-white p-5">
+          <h2 className="text-sm font-semibold text-ink">Quick actions</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/admin/dishes/new" className={btnGhost}>
+              Add dish
+            </Link>
+            <Link href="/admin/restaurants" className={btnGhost}>
+              Add restaurant
+            </Link>
+            <Link href="/admin/review" className={btnGhost}>
+              Review drafts
+            </Link>
+            <Link href="/admin/import" className={btnGhost}>
+              Bulk import
             </Link>
           </div>
         </div>
-        <DishList dishes={dishRows} />
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-lg font-semibold">Restaurants</h2>
-        <RestaurantManager
-          initial={(restaurants as Restaurant[] | null) ?? []}
-        />
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

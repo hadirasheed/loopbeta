@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/supabase/admin";
+import AdminNav from "@/components/admin/AdminNav";
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({
   children,
@@ -17,20 +19,15 @@ export default async function AdminLayout({
   // Server-side gate: non-admins never see admin UI. Write APIs re-check too.
   if (!isAdminEmail(user.email)) redirect("/");
 
+  const { count } = await supabase
+    .from("dishes")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "draft");
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-black/10 px-5 py-4 dark:border-white/10">
-        <Link href="/admin" className="text-sm font-semibold">
-          🍽️ Catalog admin
-        </Link>
-        <Link
-          href="/"
-          className="text-sm text-black/50 underline underline-offset-4 dark:text-white/50"
-        >
-          Exit
-        </Link>
-      </header>
-      {children}
+    <div className="flex min-h-dvh w-full flex-col bg-[#f4f3ee] font-[family-name:var(--font-body)] text-ink md:flex-row">
+      <AdminNav email={user.email ?? ""} draftCount={count ?? 0} />
+      <main className="min-w-0 flex-1">{children}</main>
     </div>
   );
 }
