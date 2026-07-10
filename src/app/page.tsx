@@ -14,6 +14,14 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // New users pick a name first, then set preferences.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("name")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!profile?.name) redirect("/welcome");
+
   const { data: constraints } = await supabase
     .from("user_constraints")
     .select("user_id")

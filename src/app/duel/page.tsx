@@ -19,8 +19,15 @@ export default async function DuelPage() {
     .maybeSingle();
   if (!constraints) redirect("/onboarding");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("name")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   const meta = user.user_metadata ?? {};
   const name =
+    profile?.name ||
     (meta.full_name as string) ||
     (meta.name as string) ||
     user.email?.split("@")[0] ||
