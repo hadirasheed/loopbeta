@@ -8,7 +8,8 @@ export async function buildTemplate(): Promise<Buffer> {
   const ws = wb.addWorksheet("dishes");
   ws.addRow([...IMPORT_COLUMNS]);
   ws.getRow(1).font = { bold: true };
-  // Example row so the expected formats are obvious.
+  // Example row so the expected formats are obvious. The 6 trailing weight
+  // columns (heaviness…warmth) are optional 0–1 numbers; leave blank for 0.5.
   ws.addRow([
     "Chicken Shawarma",
     32,
@@ -18,8 +19,13 @@ export async function buildTemplate(): Promise<Buffer> {
     "chicken",
     "roasted",
     "afternoon, evening, night",
-    "spring, summer, autumn, winter",
     "talabat https://talabat.com/... ; deliveroo https://deliveroo.ae/...",
+    0.65, // heaviness
+    0.3, // spiciness
+    0.3, // price_tier
+    0.35, // healthiness
+    0.2, // adventurousness
+    0.8, // warmth
   ]);
   ws.columns.forEach((c) => {
     c.width = 22;

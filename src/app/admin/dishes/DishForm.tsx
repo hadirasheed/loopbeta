@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ATTRIBUTE_KEYS,
+  ATTRIBUTE_GUIDE,
   DAYPARTS,
-  SEASONS,
   type AttributeKey,
   type DeliveryApp,
   type Restaurant,
@@ -15,14 +15,12 @@ import { type DishFormValues } from "./form-values";
 
 export type { DishFormValues } from "./form-values";
 
-const ATTR_LABELS: Record<AttributeKey, string> = {
-  heaviness: "Heaviness",
-  spiciness: "Spiciness",
-  price_tier: "Price tier",
-  healthiness: "Healthiness",
-  adventurousness: "Adventurousness",
-  warmth: "Warmth",
-};
+/** Clamp any input to the 0..1 weight range. */
+function clamp01(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(1, Math.max(0, n));
+}
 
 export default function DishForm({
   restaurants,
@@ -135,7 +133,6 @@ export default function DishForm({
       delivery_apps: v.delivery_apps.filter((a) => a.app && a.url),
       tags: v.tags,
       available_dayparts: v.available_dayparts,
-      seasons: v.seasons,
       status: v.status,
     };
     const res = await fetch(
@@ -298,25 +295,54 @@ export default function DishForm({
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 text-sm font-medium">
-          Taste attributes (0–1)
+          Taste weights (0–1)
         </legend>
-        {ATTRIBUTE_KEYS.map((k) => (
-          <label key={k} className="flex items-center gap-3 text-sm">
-            <span className="w-32 shrink-0">{ATTR_LABELS[k]}</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={v.attributes[k]}
-              onChange={(e) => setAttr(k, Number(e.target.value))}
-              className="flex-1 accent-black dark:accent-white"
-            />
-            <span className="w-10 text-right tabular-nums text-black/50 dark:text-white/50">
-              {v.attributes[k].toFixed(2)}
-            </span>
-          </label>
-        ))}
+        <div className="grid grid-cols-2 gap-3">
+          {ATTRIBUTE_KEYS.map((k) => (
+            <label key={k} className="flex flex-col gap-1 text-sm">
+              <span className="text-xs text-black/60">
+                {ATTRIBUTE_GUIDE[k].label}
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                value={v.attributes[k]}
+                onChange={(e) => setAttr(k, clamp01(e.target.value))}
+                className={inputCls}
+              />
+            </label>
+          ))}
+        </div>
+
+        {/* Reference table: what each number means */}
+        <div className="mt-1 overflow-hidden rounded-lg border border-black/10 text-xs">
+          <table className="w-full text-left">
+            <thead className="bg-black/[0.03] text-black/50">
+              <tr>
+                <th className="px-3 py-1.5 font-medium">Weight</th>
+                <th className="px-3 py-1.5 font-medium">0.0 means</th>
+                <th className="px-3 py-1.5 font-medium">1.0 means</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ATTRIBUTE_KEYS.map((k) => (
+                <tr key={k} className="border-t border-black/5">
+                  <td className="px-3 py-1.5 font-medium">
+                    {ATTRIBUTE_GUIDE[k].label}
+                  </td>
+                  <td className="px-3 py-1.5 text-black/60">
+                    {ATTRIBUTE_GUIDE[k].low}
+                  </td>
+                  <td className="px-3 py-1.5 text-black/60">
+                    {ATTRIBUTE_GUIDE[k].high}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </fieldset>
 
       <div className="flex gap-6">
@@ -377,22 +403,6 @@ export default function DishForm({
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">Seasons</legend>
-        <p className="mb-2 text-xs text-black/40 dark:text-white/40">
-          Leave empty for no restriction (shown in any season).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {SEASONS.map((s) => (
-            <Chip
-              key={s}
-              label={s}
-              active={v.seasons.includes(s)}
-              onClick={() => toggleIn("seasons", s)}
-            />
-          ))}
-        </div>
-      </fieldset>
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Tags</legend>

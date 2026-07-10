@@ -1,4 +1,4 @@
-import type { Daypart, Season, Dish } from "@/lib/types";
+import type { Daypart, Dish } from "@/lib/types";
 
 /** Map an hour (0–23) to a daypart bucket. */
 export function currentDaypart(now: Date = new Date()): Daypart {
@@ -10,29 +10,13 @@ export function currentDaypart(now: Date = new Date()): Daypart {
   return "night";
 }
 
-/** Map the calendar month to a season (Northern hemisphere). */
-export function currentSeason(now: Date = new Date()): Season {
-  const m = now.getMonth(); // 0 = Jan
-  if (m <= 1 || m === 11) return "winter"; // Dec–Feb
-  if (m <= 4) return "spring"; // Mar–May
-  if (m <= 7) return "summer"; // Jun–Aug
-  return "autumn"; // Sep–Nov
-}
-
 /**
- * Keep a dish if it's available now: an empty (or null) dayparts/seasons list
- * means "no restriction", otherwise the current daypart/season must be listed.
+ * Keep a dish if it's available at the current daypart: an empty (or null)
+ * dayparts list means "no restriction". (Seasons were removed from the model.)
  */
-export function filterByAvailability(
-  dishes: Dish[],
-  daypart: Daypart,
-  season: Season
-): Dish[] {
+export function filterByAvailability(dishes: Dish[], daypart: Daypart): Dish[] {
   return dishes.filter((d) => {
     const dp = d.available_dayparts ?? [];
-    const se = d.seasons ?? [];
-    if (dp.length > 0 && !dp.includes(daypart)) return false;
-    if (se.length > 0 && !se.includes(season)) return false;
-    return true;
+    return dp.length === 0 || dp.includes(daypart);
   });
 }

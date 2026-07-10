@@ -13,7 +13,6 @@ interface ParsedItem {
     price: number | null;
     cuisine: string | null;
     dayparts: string[];
-    seasons: string[];
     delivery_apps: { app: string; url: string }[];
   };
   errors: string[];
@@ -191,9 +190,11 @@ export default function ImportClient({
         </a>
         <p className="text-xs text-black/50 dark:text-white/50">
           Columns: name, price, description, image_url, cuisine, main_protein,
-          prep_style, dayparts, seasons, delivery_apps. Attributes are set later
-          in review. Dayparts/seasons are comma-separated; delivery_apps are
-          &quot;app url&quot; pairs separated by &quot;;&quot;.
+          prep_style, dayparts, delivery_apps, then the 6 weight columns
+          (heaviness, spiciness, price_tier, healthiness, adventurousness,
+          warmth). Weights are optional 0–1 numbers — leave blank for 0.5 and
+          set them later in review. Dayparts are comma-separated; delivery_apps
+          are &quot;app url&quot; pairs separated by &quot;;&quot;.
         </p>
         <label
           className={`self-start rounded-lg px-4 py-2 text-sm font-medium ${
@@ -250,7 +251,6 @@ export default function ImportClient({
                   <th className="p-2">Name</th>
                   <th className="p-2">Price</th>
                   <th className="p-2">Dayparts</th>
-                  <th className="p-2">Seasons</th>
                   <th className="p-2">Issues</th>
                 </tr>
               </thead>
@@ -268,7 +268,6 @@ export default function ImportClient({
                     <td className="p-2 font-medium">{it.data.name || "—"}</td>
                     <td className="p-2 tabular-nums">{it.data.price ?? "—"}</td>
                     <td className="p-2">{it.data.dayparts.join(", ") || "any"}</td>
-                    <td className="p-2">{it.data.seasons.join(", ") || "any"}</td>
                     <td className="p-2">
                       {it.errors.map((e) => (
                         <span key={e} className="block text-red-600 dark:text-red-400">

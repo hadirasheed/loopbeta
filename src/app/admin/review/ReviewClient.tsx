@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ATTRIBUTE_KEYS,
+  ATTRIBUTE_GUIDE,
   DAYPARTS,
-  SEASONS,
-  type AttributeKey,
   type DishAttributes,
 } from "@/lib/types";
+import { btnAccent, btnGhost, inputCls } from "@/components/admin/ui";
 
 export interface ReviewDish {
   id: string;
@@ -19,34 +19,45 @@ export interface ReviewDish {
   attributes: DishAttributes;
   tags: string[];
   available_dayparts: string[];
-  seasons: string[];
 }
 
-const ATTR_LABELS: Record<AttributeKey, string> = {
-  heaviness: "Heaviness",
-  spiciness: "Spiciness",
-  price_tier: "Price tier",
-  healthiness: "Healthiness",
-  adventurousness: "Adventurousness",
-  warmth: "Warmth",
-};
+function clamp01(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(1, Math.max(0, n));
+}
+function toggleArr(arr: string[], val: string) {
+  return arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
+}
 
 export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[] }) {
   const router = useRouter();
   const [dishes, setDishes] = useState(initial);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bulkTag, setBulkTag] = useState("");
+
+  const allSelected = dishes.length > 0 && dishes.every((d) => selected.has(d.id));
 
   function patchLocal(id: string, patch: Partial<ReviewDish>) {
-    setDishes((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, ...patch } : d))
-    );
+    setDishes((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
   }
-
   function toggleSelect(id: string) {
     setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(dishes.map((d) => d.id)));
+  }
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -61,7 +72,6 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
       attributes: d.attributes,
       tags: d.tags,
       available_dayparts: d.available_dayparts,
-      seasons: d.seasons,
     };
     if (publish) body.status = "published";
     const res = await fetch(`/api/admin/dishes/${d.id}`, {
@@ -75,19 +85,24 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
       setError(error ?? "Save failed.");
       return;
     }
-    if (publish) {
-      setDishes((prev) => prev.filter((x) => x.id !== d.id));
-      setSelected((prev) => {
-        const n = new Set(prev);
-        n.delete(d.id);
-        return n;
-      });
-      router.refresh();
-    }
+    if (publish) removeLocal([d.id]);
   }
 
+  function removeLocal(ids: string[]) {
+    const set = new Set(ids);
+    setDishes((prev) => prev.filter((x) => !set.has(x.id)));
+    setSelected((prev) => {
+      const n = new Set(prev);
+      ids.forEach((id) => n.delete(id));
+      return n;
+    });
+    router.refresh();
+  }
+
+  const selectedIds = () => [...selected];
+
   async function preTag() {
-    const ids = [...selected];
+    const ids = selectedIds();
     if (ids.length === 0) return;
     setBulkBusy(true);
     setError(null);
@@ -102,15 +117,11 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
       setError(data?.error ?? "Tagging failed.");
       return;
     }
-    // Apply returned attributes/tags to the tagged dishes in place.
-    const byId = new Map<
-      string,
-      { attributes?: ReviewDish["attributes"]; tags?: string[] }
-    >();
+    const byId = new Map<string, { attributes?: DishAttributes; tags?: string[] }>();
     for (const r of data.results as {
       id: string;
       ok: boolean;
-      attributes?: ReviewDish["attributes"];
+      attributes?: DishAttributes;
       tags?: string[];
     }[]) {
       if (r.ok && r.attributes) byId.set(r.id, r);
@@ -124,237 +135,329 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
       })
     );
     if (data.failed > 0) {
-      setError(
-        `${data.failed} dish(es) couldn't be auto-tagged — tag them manually.`
-      );
+      setError(`${data.failed} dish(es) couldn't be auto-tagged — tag them manually.`);
     }
   }
 
-  async function bulkApply(patch: Record<string, unknown>, publish = false) {
-    const ids = [...selected];
+  async function bulkPublish() {
+    const ids = selectedIds();
     if (ids.length === 0) return;
     setBulkBusy(true);
     setError(null);
     const res = await fetch("/api/admin/dishes/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids, patch }),
+      body: JSON.stringify({ ids, patch: { status: "published" } }),
     });
     setBulkBusy(false);
-    if (!res.ok) {
+    if (res.ok) removeLocal(ids);
+    else {
       const { error } = await res.json().catch(() => ({ error: "Failed" }));
-      setError(error ?? "Bulk update failed.");
-      return;
-    }
-    if (publish) {
-      setDishes((prev) => prev.filter((x) => !selected.has(x.id)));
-      setSelected(new Set());
-      router.refresh();
-    } else {
-      // Reflect the applied fields locally.
-      setDishes((prev) =>
-        prev.map((d) => (selected.has(d.id) ? { ...d, ...mapPatch(patch) } : d))
-      );
+      setError(error ?? "Publish failed.");
     }
   }
 
+  async function bulkSetDayparts(vals: string[]) {
+    const ids = selectedIds();
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    const res = await fetch("/api/admin/dishes/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, patch: { available_dayparts: vals } }),
+    });
+    setBulkBusy(false);
+    if (res.ok) {
+      setDishes((prev) =>
+        prev.map((d) =>
+          selected.has(d.id) ? { ...d, available_dayparts: vals } : d
+        )
+      );
+    } else setError("Bulk update failed.");
+  }
+
+  async function bulkAddTag() {
+    const tag = bulkTag.trim().toLowerCase();
+    if (!tag) return;
+    const affected = dishes.filter((d) => selected.has(d.id));
+    setBulkBusy(true);
+    await Promise.all(
+      affected.map((d) =>
+        fetch(`/api/admin/dishes/${d.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tags: Array.from(new Set([...d.tags, tag])) }),
+        })
+      )
+    );
+    setBulkBusy(false);
+    setDishes((prev) =>
+      prev.map((d) =>
+        selected.has(d.id)
+          ? { ...d, tags: Array.from(new Set([...d.tags, tag])) }
+          : d
+      )
+    );
+    setBulkTag("");
+  }
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {error && (
-        <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+        <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
           {error}
         </p>
       )}
 
-      {selected.size > 0 && (
-        <BulkBar
-          count={selected.size}
-          busy={bulkBusy}
-          onSetDayparts={(vals) => bulkApply({ available_dayparts: vals })}
-          onSetSeasons={(vals) => bulkApply({ seasons: vals })}
-          onAddTag={(tag) => {
-            // union tag into each selected dish
-            const affected = dishes.filter((d) => selected.has(d.id));
-            Promise.all(
-              affected.map((d) =>
-                fetch(`/api/admin/dishes/${d.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    tags: Array.from(new Set([...d.tags, tag])),
-                  }),
-                })
-              )
-            ).then(() => {
-              setDishes((prev) =>
-                prev.map((d) =>
-                  selected.has(d.id)
-                    ? { ...d, tags: Array.from(new Set([...d.tags, tag])) }
-                    : d
-                )
-              );
-            });
-          }}
-          onPublish={() => bulkApply({ status: "published" }, true)}
-          onPreTag={preTag}
-          onClear={() => setSelected(new Set())}
-        />
-      )}
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2">
+        <label className="flex items-center gap-2 text-sm font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            className="h-4 w-4 accent-ink"
+          />
+          Select all
+        </label>
+        <span className="text-sm text-ink/50">{selected.size} selected</span>
 
-      {dishes.map((d) => (
-        <div
-          key={d.id}
-          className="rounded-2xl border border-black/10 p-4 dark:border-white/15"
-        >
-          <div className="mb-3 flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={selected.has(d.id)}
-              onChange={() => toggleSelect(d.id)}
-              className="mt-1 h-4 w-4 accent-black dark:accent-white"
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={d.image_url ?? ""}
-              alt=""
-              className="h-14 w-14 shrink-0 rounded-lg bg-black/5 object-cover dark:bg-white/10"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{d.name}</p>
-              <p className="text-xs text-black/50 dark:text-white/50">
-                {d.restaurantName}
-              </p>
-              {d.description && (
-                <p className="mt-1 line-clamp-1 text-xs text-black/50 dark:text-white/50">
-                  {d.description}
-                </p>
+        {selected.size > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button className={btnGhost} disabled={bulkBusy} onClick={preTag}>
+              {bulkBusy ? "Working…" : "✨ Pre-tag with AI"}
+            </button>
+            <DaypartMenu disabled={bulkBusy} onApply={bulkSetDayparts} />
+            <div className="flex items-center gap-1">
+              <input
+                value={bulkTag}
+                onChange={(e) => setBulkTag(e.target.value)}
+                placeholder="tag all"
+                className="w-28 rounded-lg border border-black/15 px-2 py-1.5 text-sm outline-none focus:border-ink/40"
+              />
+              <button
+                className={btnGhost}
+                disabled={bulkBusy || !bulkTag.trim()}
+                onClick={bulkAddTag}
+              >
+                Add
+              </button>
+            </div>
+            <button className={btnAccent} disabled={bulkBusy} onClick={bulkPublish}>
+              Publish {selected.size}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="overflow-hidden rounded-xl border border-black/10 bg-white">
+        {dishes.map((d) => {
+          const open = expanded.has(d.id);
+          const tagged = ATTRIBUTE_KEYS.some((k) => d.attributes[k] !== 0.5);
+          return (
+            <div key={d.id} className="border-b border-black/5 last:border-0">
+              {/* compact row */}
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={selected.has(d.id)}
+                  onChange={() => toggleSelect(d.id)}
+                  className="h-4 w-4 accent-ink"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={d.image_url ?? ""}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-md bg-black/5 object-cover"
+                />
+                <button
+                  onClick={() => toggleExpand(d.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-ink">
+                      {d.name}
+                    </span>
+                    <span className="block truncate text-xs text-ink/50">
+                      {d.restaurantName}
+                    </span>
+                  </span>
+                  {!tagged && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                      Untagged
+                    </span>
+                  )}
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={`shrink-0 text-ink/40 transition ${open ? "rotate-180" : ""}`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => saveDish(d, true)}
+                  disabled={busyId === d.id}
+                  className="shrink-0 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Publish
+                </button>
+              </div>
+
+              {/* expanded detail */}
+              {open && (
+                <div className="border-t border-black/5 bg-black/[0.015] px-4 py-4">
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink/40">
+                    Taste weights (0–1)
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {ATTRIBUTE_KEYS.map((k) => (
+                      <label key={k} className="flex flex-col gap-1 text-sm">
+                        <span
+                          className="text-xs text-ink/60"
+                          title={`0 = ${ATTRIBUTE_GUIDE[k].low} · 1 = ${ATTRIBUTE_GUIDE[k].high}`}
+                        >
+                          {ATTRIBUTE_GUIDE[k].label}
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={d.attributes[k]}
+                          onChange={(e) =>
+                            patchLocal(d.id, {
+                              attributes: {
+                                ...d.attributes,
+                                [k]: clamp01(e.target.value),
+                              },
+                            })
+                          }
+                          className={inputCls}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink/40">
+                      Dayparts (empty = any time)
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DAYPARTS.map((dp) => (
+                        <button
+                          key={dp}
+                          onClick={() =>
+                            patchLocal(d.id, {
+                              available_dayparts: toggleArr(
+                                d.available_dayparts,
+                                dp
+                              ),
+                            })
+                          }
+                          className={`rounded-full border px-3 py-1 text-xs capitalize transition ${
+                            d.available_dayparts.includes(dp)
+                              ? "border-ink bg-ink text-white"
+                              : "border-black/15 text-ink/70"
+                          }`}
+                        >
+                          {dp}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink/40">
+                      Tags
+                    </div>
+                    <TagEditor
+                      tags={d.tags}
+                      onAdd={(t) =>
+                        patchLocal(d.id, {
+                          tags: Array.from(new Set([...d.tags, t])),
+                        })
+                      }
+                      onRemove={(t) =>
+                        patchLocal(d.id, { tags: d.tags.filter((x) => x !== t) })
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => saveDish(d, false)}
+                      disabled={busyId === d.id}
+                      className={btnGhost}
+                    >
+                      {busyId === d.id ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={() => saveDish(d, true)}
+                      disabled={busyId === d.id}
+                      className={btnAccent}
+                    >
+                      Save & publish
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {ATTRIBUTE_KEYS.map((k) => (
-              <label key={k} className="flex items-center gap-3 text-sm">
-                <span className="w-32 shrink-0 text-xs">{ATTR_LABELS[k]}</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={d.attributes[k]}
-                  onChange={(e) =>
-                    patchLocal(d.id, {
-                      attributes: {
-                        ...d.attributes,
-                        [k]: Number(e.target.value),
-                      },
-                    })
-                  }
-                  className="flex-1 accent-black dark:accent-white"
-                />
-                <span className="w-9 text-right text-xs tabular-nums text-black/50 dark:text-white/50">
-                  {d.attributes[k].toFixed(2)}
-                </span>
-              </label>
-            ))}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-4">
-            <ChipGroup
-              title="Dayparts"
-              options={DAYPARTS}
-              selected={d.available_dayparts}
-              onToggle={(val) =>
-                patchLocal(d.id, {
-                  available_dayparts: toggle(d.available_dayparts, val),
-                })
-              }
-            />
-            <ChipGroup
-              title="Seasons"
-              options={SEASONS}
-              selected={d.seasons}
-              onToggle={(val) =>
-                patchLocal(d.id, { seasons: toggle(d.seasons, val) })
-              }
-            />
-          </div>
-
-          <TagEditor
-            tags={d.tags}
-            onAdd={(t) =>
-              patchLocal(d.id, { tags: Array.from(new Set([...d.tags, t])) })
-            }
-            onRemove={(t) =>
-              patchLocal(d.id, { tags: d.tags.filter((x) => x !== t) })
-            }
-          />
-
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={() => saveDish(d, false)}
-              disabled={busyId === d.id}
-              className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50 dark:border-white/20"
-            >
-              {busyId === d.id ? "Saving…" : "Save"}
-            </button>
-            <button
-              onClick={() => saveDish(d, true)}
-              disabled={busyId === d.id}
-              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-            >
-              Publish
-            </button>
-          </div>
-        </div>
-      ))}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function mapPatch(patch: Record<string, unknown>): Partial<ReviewDish> {
-  const out: Partial<ReviewDish> = {};
-  if (Array.isArray(patch.available_dayparts))
-    out.available_dayparts = patch.available_dayparts as string[];
-  if (Array.isArray(patch.seasons)) out.seasons = patch.seasons as string[];
-  return out;
-}
-
-function toggle(arr: string[], val: string): string[] {
-  return arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
-}
-
-function ChipGroup({
-  title,
-  options,
-  selected,
-  onToggle,
+function DaypartMenu({
+  disabled,
+  onApply,
 }: {
-  title: string;
-  options: readonly string[];
-  selected: string[];
-  onToggle: (val: string) => void;
+  disabled: boolean;
+  onApply: (vals: string[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState<string[]>([]);
   return (
-    <div>
-      <p className="mb-1.5 text-xs font-medium text-black/50 dark:text-white/50">
-        {title}
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((o) => (
+    <div className="relative">
+      <button className={btnGhost} disabled={disabled} onClick={() => setOpen((o) => !o)}>
+        Set dayparts
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-black/10 bg-white p-3 shadow-lg">
+          <div className="flex flex-wrap gap-1.5">
+            {DAYPARTS.map((dp) => (
+              <button
+                key={dp}
+                onClick={() => setVals((v) => toggleArr(v, dp))}
+                className={`rounded-full border px-2.5 py-1 text-xs capitalize ${
+                  vals.includes(dp)
+                    ? "border-ink bg-ink text-white"
+                    : "border-black/15 text-ink/70"
+                }`}
+              >
+                {dp}
+              </button>
+            ))}
+          </div>
           <button
-            key={o}
-            onClick={() => onToggle(o)}
-            className={`rounded-full border px-2.5 py-1 text-xs capitalize transition ${
-              selected.includes(o)
-                ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
-                : "border-black/15 dark:border-white/20"
-            }`}
+            className="mt-2 w-full rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white"
+            onClick={() => {
+              onApply(vals);
+              setOpen(false);
+            }}
           >
-            {o}
+            Apply to selected
           </button>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -370,146 +473,35 @@ function TagEditor({
 }) {
   const [draft, setDraft] = useState("");
   return (
-    <div className="mt-3">
-      <p className="mb-1.5 text-xs font-medium text-black/50 dark:text-white/50">
-        Tags
-      </p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {tags.map((t) => (
-          <span
-            key={t}
-            className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2.5 py-1 text-xs dark:bg-white/10"
-          >
-            {t}
-            <button
-              onClick={() => onRemove(t)}
-              className="text-black/40 hover:text-red-600 dark:text-white/40"
-            >
-              ✕
-            </button>
-          </span>
-        ))}
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
-              e.preventDefault();
-              const t = draft.trim().toLowerCase();
-              if (t) onAdd(t);
-              setDraft("");
-            }
-          }}
-          placeholder="+ tag"
-          className="w-24 rounded-full border border-black/15 bg-transparent px-2.5 py-1 text-xs outline-none focus:border-black dark:border-white/20 dark:focus:border-white"
-        />
-      </div>
-    </div>
-  );
-}
-
-function BulkBar({
-  count,
-  busy,
-  onSetDayparts,
-  onSetSeasons,
-  onAddTag,
-  onPublish,
-  onPreTag,
-  onClear,
-}: {
-  count: number;
-  busy: boolean;
-  onSetDayparts: (vals: string[]) => void;
-  onSetSeasons: (vals: string[]) => void;
-  onAddTag: (tag: string) => void;
-  onPublish: () => void;
-  onPreTag: () => void;
-  onClear: () => void;
-}) {
-  const [dayparts, setDayparts] = useState<string[]>([]);
-  const [seasons, setSeasons] = useState<string[]>([]);
-  const [tag, setTag] = useState("");
-
-  return (
-    <div className="sticky top-0 z-10 flex flex-col gap-3 rounded-2xl border border-black/10 bg-background p-4 shadow-sm dark:border-white/15">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{count} selected</span>
-        <button
-          onClick={onClear}
-          className="text-xs text-black/50 underline underline-offset-4 dark:text-white/50"
+    <div className="flex flex-wrap items-center gap-1.5">
+      {tags.map((t) => (
+        <span
+          key={t}
+          className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2.5 py-1 text-xs"
         >
-          Clear
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <ChipGroup
-            title="Set dayparts (replaces)"
-            options={DAYPARTS}
-            selected={dayparts}
-            onToggle={(v) => setDayparts(toggle(dayparts, v))}
-          />
+          {t}
           <button
-            disabled={busy}
-            onClick={() => onSetDayparts(dayparts)}
-            className="mt-1.5 rounded-full border border-black/15 px-3 py-1 text-xs disabled:opacity-50 dark:border-white/20"
+            onClick={() => onRemove(t)}
+            className="text-ink/40 hover:text-red-600"
           >
-            Apply dayparts
+            ✕
           </button>
-        </div>
-        <div>
-          <ChipGroup
-            title="Set seasons (replaces)"
-            options={SEASONS}
-            selected={seasons}
-            onToggle={(v) => setSeasons(toggle(seasons, v))}
-          />
-          <button
-            disabled={busy}
-            onClick={() => onSetSeasons(seasons)}
-            className="mt-1.5 rounded-full border border-black/15 px-3 py-1 text-xs disabled:opacity-50 dark:border-white/20"
-          >
-            Apply seasons
-          </button>
-        </div>
-        <div className="flex items-end gap-1.5">
-          <input
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-            placeholder="add tag to all"
-            className="w-36 rounded-full border border-black/15 bg-transparent px-3 py-1.5 text-xs outline-none focus:border-black dark:border-white/20 dark:focus:border-white"
-          />
-          <button
-            disabled={busy || !tag.trim()}
-            onClick={() => {
-              onAddTag(tag.trim().toLowerCase());
-              setTag("");
-            }}
-            className="rounded-full border border-black/15 px-3 py-1.5 text-xs disabled:opacity-50 dark:border-white/20"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          disabled={busy}
-          onClick={onPreTag}
-          className="rounded-full border border-black/15 px-5 py-2 text-sm font-medium disabled:opacity-50 dark:border-white/20"
-        >
-          {busy ? "Working…" : `✨ Pre-tag ${count} with AI`}
-        </button>
-        <button
-          disabled={busy}
-          onClick={onPublish}
-          className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {busy ? "Working…" : `Publish ${count} selected`}
-        </button>
-      </div>
+        </span>
+      ))}
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            const t = draft.trim().toLowerCase();
+            if (t) onAdd(t);
+            setDraft("");
+          }
+        }}
+        placeholder="+ tag"
+        className="w-24 rounded-full border border-black/15 px-2.5 py-1 text-xs outline-none focus:border-ink/40"
+      />
     </div>
   );
 }

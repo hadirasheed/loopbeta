@@ -2,14 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-guard";
 import { adminClient } from "@/lib/supabase/admin";
 import { validateImportRow } from "@/lib/import-validate";
-import { ATTRIBUTE_KEYS, type DishAttributes } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-// Neutral starting point; refined via AI pre-tag or the review sliders.
-function defaultAttributes(): DishAttributes {
-  return Object.fromEntries(ATTRIBUTE_KEYS.map((k) => [k, 0.5])) as DishAttributes;
-}
 
 // POST /api/admin/import/commit — insert validated rows as draft dishes under a
 // restaurant. Re-validates server-side; never trusts the client's rows.
@@ -67,9 +61,8 @@ export async function POST(request: NextRequest) {
       cuisine: d.cuisine,
       main_protein: d.main_protein,
       prep_style: d.prep_style,
-      attributes: defaultAttributes(),
+      attributes: d.attributes,
       available_dayparts: d.dayparts,
-      seasons: d.seasons,
       delivery_apps: d.delivery_apps,
       tags: [],
       is_veg: false,

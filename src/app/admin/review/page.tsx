@@ -11,7 +11,7 @@ export default async function ReviewPage() {
   const { data } = await supabase
     .from("dishes")
     .select(
-      "id, name, image_url, description, attributes, tags, available_dayparts, seasons, restaurant:restaurants(name)"
+      "id, name, image_url, description, attributes, tags, available_dayparts, restaurant:restaurants(name)"
     )
     .eq("status", "draft")
     .order("created_at", { ascending: false });
@@ -32,7 +32,6 @@ export default async function ReviewPage() {
       attributes,
       tags: (d.tags as string[] | null) ?? [],
       available_dayparts: (d.available_dayparts as string[] | null) ?? [],
-      seasons: (d.seasons as string[] | null) ?? [],
     };
   });
 

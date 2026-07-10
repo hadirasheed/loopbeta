@@ -1,11 +1,15 @@
 import {
+  ATTRIBUTE_KEYS,
   DAYPARTS,
-  SEASONS,
   type DeliveryApp,
+  type DishAttributes,
 } from "@/lib/types";
 
-/** Columns in the import template, in order. No attribute columns by design —
- *  attributes are set later (AI pre-tag / the review sliders). */
+/**
+ * Columns in the import template, in order. The 6 attribute weight columns are
+ * OPTIONAL — leave them blank to default to 0.5 and set them later (AI pre-tag
+ * or the review screen).
+ */
 export const IMPORT_COLUMNS = [
   "name",
   "price",
@@ -15,8 +19,8 @@ export const IMPORT_COLUMNS = [
   "main_protein",
   "prep_style",
   "dayparts",
-  "seasons",
   "delivery_apps",
+  ...ATTRIBUTE_KEYS,
 ] as const;
 
 export interface ParsedDish {
@@ -28,8 +32,8 @@ export interface ParsedDish {
   main_protein: string | null;
   prep_style: string | null;
   dayparts: string[];
-  seasons: string[];
   delivery_apps: DeliveryApp[];
+  attributes: DishAttributes;
 }
 
 export interface RowResult {
@@ -97,13 +101,27 @@ export function validateImportRow(raw: Record<string, unknown>): RowResult {
   const badDp = dpAll.filter((x) => !dayparts.includes(x));
   if (badDp.length) warnings.push(`Ignored dayparts: ${badDp.join(", ")}`);
 
-  const seAll = splitList(cell(raw, "seasons"));
-  const seasons = seAll.filter((x) => (SEASONS as readonly string[]).includes(x));
-  const badSe = seAll.filter((x) => !seasons.includes(x));
-  if (badSe.length) warnings.push(`Ignored seasons: ${badSe.join(", ")}`);
-
   const { apps, bad } = parseDeliveryApps(cell(raw, "delivery_apps"));
   if (bad.length) warnings.push(`Skipped delivery entries: ${bad.join(" | ")}`);
+
+  // Attribute weights: optional, clamp to 0..1, default 0.5 when blank.
+  const attributes = {} as DishAttributes;
+  const badAttrs: string[] = [];
+  for (const k of ATTRIBUTE_KEYS) {
+    const s = cell(raw, k);
+    if (!s) {
+      attributes[k] = 0.5;
+      continue;
+    }
+    const n = Number(s);
+    if (!Number.isFinite(n)) {
+      badAttrs.push(`${k}="${s}"`);
+      attributes[k] = 0.5;
+    } else {
+      attributes[k] = Math.min(1, Math.max(0, n));
+    }
+  }
+  if (badAttrs.length) warnings.push(`Ignored weights: ${badAttrs.join(", ")}`);
 
   const str = (k: string) => cell(raw, k) || null;
 
@@ -117,8 +135,8 @@ export function validateImportRow(raw: Record<string, unknown>): RowResult {
       main_protein: str("main_protein"),
       prep_style: str("prep_style"),
       dayparts,
-      seasons,
       delivery_apps: apps,
+      attributes,
     },
     errors,
     warnings,

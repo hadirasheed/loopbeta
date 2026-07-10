@@ -11,6 +11,22 @@ export const ATTRIBUTE_KEYS = [
 
 export type AttributeKey = (typeof ATTRIBUTE_KEYS)[number];
 
+/**
+ * What each 0..1 attribute weight means. Shared by the dish form reference
+ * table, the review screen, and the AI tagging prompt.
+ */
+export const ATTRIBUTE_GUIDE: Record<
+  AttributeKey,
+  { label: string; low: string; high: string }
+> = {
+  heaviness: { label: "Heaviness", low: "light / refreshing", high: "heavy / rich / filling" },
+  spiciness: { label: "Spiciness", low: "not spicy", high: "very spicy / hot" },
+  price_tier: { label: "Price tier", low: "cheap", high: "premium / expensive" },
+  healthiness: { label: "Healthiness", low: "indulgent", high: "healthy / nutritious" },
+  adventurousness: { label: "Adventurousness", low: "familiar / safe", high: "adventurous / unusual" },
+  warmth: { label: "Warmth", low: "cold dish", high: "hot / comforting" },
+};
+
 /** Allergens offered in onboarding and tagged on dishes. Client-safe. */
 export const ALLERGEN_OPTIONS = [
   "dairy",
