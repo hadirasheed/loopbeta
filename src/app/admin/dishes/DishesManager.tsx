@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Restaurant } from "@/lib/types";
 import { PageHeader, btnAccent, btnGhost, inputCls } from "@/components/admin/ui";
+import { Pagination, usePagination } from "@/components/admin/Pagination";
 
 export interface DishRow {
   id: string;
@@ -83,6 +84,8 @@ export default function DishesManager({
     });
     return out;
   }, [dishes, query, status, restaurant, cuisine, diet, sort]);
+
+  const pg = usePagination(filtered, 20);
 
   const allSelected =
     filtered.length > 0 && filtered.every((d) => selected.has(d.id));
@@ -332,7 +335,7 @@ export default function DishesManager({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((d) => (
+              {pg.pageItems.map((d) => (
                 <tr
                   key={d.id}
                   className="border-b border-black/5 last:border-0 hover:bg-black/[0.015]"
@@ -380,7 +383,7 @@ export default function DishesManager({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {filtered.map((d) => (
+          {pg.pageItems.map((d) => (
             <div
               key={d.id}
               className={`overflow-hidden rounded-xl border bg-white ${
@@ -431,6 +434,8 @@ export default function DishesManager({
           ))}
         </div>
       )}
+
+      <Pagination state={pg} unit="dishes" />
     </div>
   );
 }

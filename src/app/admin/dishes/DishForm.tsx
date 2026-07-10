@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   ATTRIBUTE_KEYS,
   ATTRIBUTE_GUIDE,
+  ATTRIBUTE_SCALE_POINTS,
+  attributeExample,
   DAYPARTS,
   type AttributeKey,
   type DeliveryApp,
@@ -312,32 +314,39 @@ export default function DishForm({
                 onChange={(e) => setAttr(k, clamp01(e.target.value))}
                 className={inputCls}
               />
+              {/* Live reference for the value the admin just typed. */}
+              <span className="text-[11px] leading-tight text-black/45">
+                {v.attributes[k].toFixed(2)} —{" "}
+                {attributeExample(k, v.attributes[k])}
+              </span>
             </label>
           ))}
         </div>
 
-        {/* Reference table: what each number means */}
-        <div className="mt-1 overflow-hidden rounded-lg border border-black/10 text-xs">
-          <table className="w-full text-left">
+        {/* Reference table: concrete example at each point on the scale. */}
+        <div className="mt-1 overflow-x-auto rounded-lg border border-black/10 text-xs">
+          <table className="w-full min-w-[36rem] text-left">
             <thead className="bg-black/[0.03] text-black/50">
               <tr>
                 <th className="px-3 py-1.5 font-medium">Weight</th>
-                <th className="px-3 py-1.5 font-medium">0.0 means</th>
-                <th className="px-3 py-1.5 font-medium">1.0 means</th>
+                {ATTRIBUTE_SCALE_POINTS.map((p) => (
+                  <th key={p} className="px-3 py-1.5 font-medium tabular-nums">
+                    {p.toFixed(2)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {ATTRIBUTE_KEYS.map((k) => (
-                <tr key={k} className="border-t border-black/5">
-                  <td className="px-3 py-1.5 font-medium">
+                <tr key={k} className="border-t border-black/5 align-top">
+                  <td className="px-3 py-1.5 font-medium whitespace-nowrap">
                     {ATTRIBUTE_GUIDE[k].label}
                   </td>
-                  <td className="px-3 py-1.5 text-black/60">
-                    {ATTRIBUTE_GUIDE[k].low}
-                  </td>
-                  <td className="px-3 py-1.5 text-black/60">
-                    {ATTRIBUTE_GUIDE[k].high}
-                  </td>
+                  {ATTRIBUTE_GUIDE[k].scale.map((a) => (
+                    <td key={a.value} className="px-3 py-1.5 text-black/60">
+                      {a.example}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

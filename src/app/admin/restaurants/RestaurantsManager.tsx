@@ -8,6 +8,7 @@ import {
   btnGhost,
   inputCls,
 } from "@/components/admin/ui";
+import { Pagination, usePagination } from "@/components/admin/Pagination";
 
 export interface RestaurantRow {
   id: string;
@@ -37,6 +38,8 @@ export default function RestaurantsManager({ rows }: { rows: RestaurantRow[] }) 
         (r.area ?? "").toLowerCase().includes(q)
     );
   }, [rows, query]);
+
+  const pg = usePagination(filtered, 20);
 
   const allSelected =
     filtered.length > 0 && filtered.every((r) => selected.has(r.id));
@@ -285,7 +288,7 @@ export default function RestaurantsManager({ rows }: { rows: RestaurantRow[] }) 
                 </td>
               </tr>
             ) : (
-              filtered.map((r) =>
+              pg.pageItems.map((r) =>
                 editing === r.id ? (
                   <EditRow
                     key={r.id}
@@ -333,6 +336,8 @@ export default function RestaurantsManager({ rows }: { rows: RestaurantRow[] }) 
           </tbody>
         </table>
       </div>
+
+      <Pagination state={pg} unit="restaurants" />
     </div>
   );
 }

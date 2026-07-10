@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import type { AttributeKey } from "@/lib/types";
 import { inputCls } from "@/components/admin/ui";
+import { Pagination, usePagination } from "@/components/admin/Pagination";
 
 export interface UserRow {
   id: string;
@@ -60,6 +61,8 @@ export default function UsersTable({ rows }: { rows: UserRow[] }) {
     return out;
   }, [rows, query, sort]);
 
+  const pg = usePagination(filtered, 20);
+
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -102,7 +105,7 @@ export default function UsersTable({ rows }: { rows: UserRow[] }) {
                 </td>
               </tr>
             ) : (
-              filtered.map((u) => {
+              pg.pageItems.map((u) => {
                 const expanded = open === u.id;
                 return (
                   <Fragment key={u.id}>
@@ -252,6 +255,8 @@ export default function UsersTable({ rows }: { rows: UserRow[] }) {
           </tbody>
         </table>
       </div>
+
+      <Pagination state={pg} unit="users" />
     </div>
   );
 }

@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import {
   ATTRIBUTE_KEYS,
   ATTRIBUTE_GUIDE,
+  attributeExample,
   DAYPARTS,
   type DishAttributes,
 } from "@/lib/types";
+import { Pagination, usePagination } from "@/components/admin/Pagination";
 import { btnAccent, btnGhost, inputCls } from "@/components/admin/ui";
 
 export interface ReviewDish {
@@ -39,6 +41,7 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
   const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bulkTag, setBulkTag] = useState("");
+  const pg = usePagination(dishes, 20);
 
   const allSelected = dishes.length > 0 && dishes.every((d) => selected.has(d.id));
 
@@ -253,7 +256,7 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
 
       {/* List */}
       <div className="overflow-hidden rounded-xl border border-black/10 bg-white">
-        {dishes.map((d) => {
+        {pg.pageItems.map((d) => {
           const open = expanded.has(d.id);
           const tagged = ATTRIBUTE_KEYS.some((k) => d.attributes[k] !== 0.5);
           return (
@@ -341,6 +344,10 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
                           }
                           className={inputCls}
                         />
+                        <span className="text-[11px] leading-tight text-ink/45">
+                          {d.attributes[k].toFixed(2)} —{" "}
+                          {attributeExample(k, d.attributes[k])}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -412,6 +419,8 @@ export default function ReviewClient({ dishes: initial }: { dishes: ReviewDish[]
           );
         })}
       </div>
+
+      <Pagination state={pg} unit="dishes" />
     </div>
   );
 }

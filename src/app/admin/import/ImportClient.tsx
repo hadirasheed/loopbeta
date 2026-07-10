@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Restaurant } from "@/lib/types";
+import { Pagination, usePagination } from "@/components/admin/Pagination";
 
 interface ParsedItem {
   index: number;
@@ -44,6 +45,7 @@ export default function ImportClient({
   const [done, setDone] = useState<{ imported: number; skipped: number } | null>(
     null
   );
+  const pg = usePagination(parsed?.items ?? [], 25);
 
   async function createRestaurant() {
     if (!newName.trim()) return;
@@ -255,7 +257,7 @@ export default function ImportClient({
                 </tr>
               </thead>
               <tbody>
-                {parsed.items.map((it) => (
+                {pg.pageItems.map((it) => (
                   <tr
                     key={it.index}
                     className={`border-b border-black/5 dark:border-white/10 ${
@@ -285,6 +287,7 @@ export default function ImportClient({
               </tbody>
             </table>
           </div>
+          <Pagination state={pg} unit="rows" />
           <button
             onClick={commit}
             disabled={busy || parsed.validCount === 0 || !restaurantId}
