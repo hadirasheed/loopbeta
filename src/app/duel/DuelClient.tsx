@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Frame from "@/components/Frame";
 import Logo from "@/components/Logo";
+import AppMenu from "@/components/AppMenu";
 
 interface DeliveryApp {
   app: string;
@@ -52,7 +53,13 @@ function brand(app: string) {
   );
 }
 
-export default function DuelClient() {
+export default function DuelClient({
+  accountName,
+  accountEmail,
+}: {
+  accountName: string;
+  accountEmail: string;
+}) {
   const [payload, setPayload] = useState<StepPayload | null>(null);
   const [picked, setPicked] = useState<Picked>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,22 +123,6 @@ export default function DuelClient() {
         setPicked(null);
       }
     }, 640);
-  }
-
-  async function finishNow() {
-    if (!payload || payload.done) return;
-    try {
-      const res = await fetch("/api/finish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: payload.sessionId }),
-      });
-      const data = await res.json();
-      if (res.ok) setPayload(data as StepPayload);
-      else setError(data.error ?? "Couldn't finish.");
-    } catch {
-      setError("Network error.");
-    }
   }
 
   // ---- Starting / error -----------------------------------------------------
@@ -320,44 +311,42 @@ export default function DuelClient() {
         {/* header */}
         <div className="flex items-center justify-between px-[18px] pb-[6px] pt-[14px]">
           <Logo size={34} wordmarkSize={21} />
-          <button
-            onClick={finishNow}
-            className="press flex h-9 items-center gap-[6px] rounded-full border-[3px] border-ink bg-card px-[14px] text-[13px] font-semibold text-ink shadow-hard-sm"
-          >
-            Done
-          </button>
+          <AppMenu name={accountName} email={accountEmail} />
         </div>
 
         <p className="px-5 pb-2 pt-[2px] text-center font-[family-name:var(--font-body)] text-[13px] font-bold tracking-[0.2px] text-[#6c6a63]">
           Tap the one you&apos;d rather eat right now
         </p>
 
-        <div className="relative z-[2] flex min-h-0 flex-1 flex-col gap-[14px] px-4 pb-[14px] pt-[6px]">
-          <DuelCard
-            key={`t${roundIndex}`}
-            dish={a}
-            anim={topAnim}
-            picked={picked === "top"}
-            onPick={() => pick("a")}
-          />
-          <DuelCard
-            key={`b${roundIndex}`}
-            dish={b}
-            anim={bottomAnim}
-            picked={picked === "bottom"}
-            onPick={() => pick("b")}
-          />
+        <div className="z-[2] flex min-h-0 flex-1 flex-col px-4 pb-[14px] pt-[6px]">
+          {/* Equal-height cards; the VS sits at the exact gap between them. */}
+          <div className="relative flex min-h-0 flex-1 flex-col gap-[14px]">
+            <DuelCard
+              key={`t${roundIndex}`}
+              dish={a}
+              anim={topAnim}
+              picked={picked === "top"}
+              onPick={() => pick("a")}
+            />
+            <DuelCard
+              key={`b${roundIndex}`}
+              dish={b}
+              anim={bottomAnim}
+              picked={picked === "bottom"}
+              onPick={() => pick("b")}
+            />
 
-          {!picked && (
-            <div
-              key={`v${roundIndex}`}
-              className="anim-vsPop pointer-events-none absolute left-[20.5%] top-1/2 z-[5] flex h-[58px] w-[58px] -translate-x-1/2 -translate-y-1/2 -rotate-[8deg] items-center justify-center rounded-full border-[3px] border-white bg-ink shadow-[0_0_0_3px_#161512,3px_4px_0_rgba(20,19,15,0.5)]"
-            >
-              <span className="text-[22px] font-bold italic tracking-[-1px] text-accent">
-                VS
-              </span>
-            </div>
-          )}
+            {!picked && (
+              <div
+                key={`v${roundIndex}`}
+                className="anim-vsPop pointer-events-none absolute left-[24%] top-1/2 z-[5] flex h-[58px] w-[58px] -translate-x-1/2 -translate-y-1/2 -rotate-[8deg] items-center justify-center rounded-full border-[3px] border-white bg-ink shadow-[0_0_0_3px_#161512,3px_4px_0_rgba(20,19,15,0.5)]"
+              >
+                <span className="text-[22px] font-bold italic tracking-[-1px] text-accent">
+                  VS
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="px-4 pb-[calc(14px+env(safe-area-inset-bottom))]">
@@ -412,7 +401,7 @@ function DuelCard({
   return (
     <button
       onClick={onPick}
-      className={`min-h-0 flex-1 cursor-pointer text-left will-change-transform active:scale-[0.985] ${anim}`}
+      className={`min-h-0 flex-1 basis-0 cursor-pointer text-left will-change-transform active:scale-[0.985] ${anim}`}
     >
       <div className="relative flex h-full overflow-hidden rounded-[22px] border-[3px] border-ink bg-card shadow-pop">
         <div className="stripes relative w-[48%] shrink-0 self-stretch border-r-[3px] border-ink">
@@ -421,7 +410,7 @@ function DuelCard({
             <img
               src={dish.image_url}
               alt={dish.name}
-              className="h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-cover"
             />
           )}
         </div>

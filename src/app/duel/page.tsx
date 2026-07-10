@@ -19,5 +19,12 @@ export default async function DuelPage() {
     .maybeSingle();
   if (!constraints) redirect("/onboarding");
 
-  return <DuelClient />;
+  const meta = user.user_metadata ?? {};
+  const name =
+    (meta.full_name as string) ||
+    (meta.name as string) ||
+    user.email?.split("@")[0] ||
+    "You";
+
+  return <DuelClient accountName={name} accountEmail={user.email ?? ""} />;
 }
