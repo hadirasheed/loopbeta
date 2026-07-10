@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 
 export default async function ReviewPage() {
   const supabase = await createClient();
-  // llm_providers is service-role only (RLS with no policies).
-  const activeModel = await activeTaggerInfo(adminClient());
+  // llm_providers is service-role only (RLS with no policies). Never let an AI
+  // lookup failure break the review screen.
+  const activeModel = await activeTaggerInfo(adminClient()).catch(() => null);
 
   const { data } = await supabase
     .from("dishes")
