@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import DishForm, { emptyValues } from "../DishForm";
+import DishForm from "../DishForm";
+import { emptyValues } from "../form-values";
 import type { Restaurant } from "@/lib/types";
 import { PageHeader } from "@/components/admin/ui";
 

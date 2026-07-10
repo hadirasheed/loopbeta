@@ -7,33 +7,13 @@ import {
   DAYPARTS,
   SEASONS,
   type AttributeKey,
-  type DishAttributes,
-  type DishStatus,
   type DeliveryApp,
   type Restaurant,
   ALLERGEN_OPTIONS,
 } from "@/lib/types";
+import { type DishFormValues } from "./form-values";
 
-export interface DishFormValues {
-  id?: string;
-  restaurant_id: string;
-  name: string;
-  image_url: string;
-  price: string;
-  description: string;
-  attributes: DishAttributes;
-  cuisine: string;
-  main_protein: string;
-  prep_style: string;
-  is_veg: boolean;
-  is_halal: boolean;
-  allergens: string[];
-  delivery_apps: DeliveryApp[];
-  tags: string[];
-  available_dayparts: string[];
-  seasons: string[];
-  status: DishStatus;
-}
+export type { DishFormValues } from "./form-values";
 
 const ATTR_LABELS: Record<AttributeKey, string> = {
   heaviness: "Heaviness",
@@ -43,30 +23,6 @@ const ATTR_LABELS: Record<AttributeKey, string> = {
   adventurousness: "Adventurousness",
   warmth: "Warmth",
 };
-
-export function emptyValues(): DishFormValues {
-  return {
-    restaurant_id: "",
-    name: "",
-    image_url: "",
-    price: "",
-    description: "",
-    attributes: Object.fromEntries(
-      ATTRIBUTE_KEYS.map((k) => [k, 0.5])
-    ) as DishAttributes,
-    cuisine: "",
-    main_protein: "",
-    prep_style: "",
-    is_veg: false,
-    is_halal: true,
-    allergens: [],
-    delivery_apps: [],
-    tags: [],
-    available_dayparts: [],
-    seasons: [],
-    status: "draft",
-  };
-}
 
 export default function DishForm({
   restaurants,
