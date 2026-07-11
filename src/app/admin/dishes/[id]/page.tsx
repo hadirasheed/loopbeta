@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { adminClient } from "@/lib/supabase/admin";
+import { activeTaggerInfo } from "@/lib/ai/providers";
 import DishForm, { type DishFormValues } from "../DishForm";
 import {
   ATTRIBUTE_KEYS,
@@ -9,6 +11,7 @@ import {
 } from "@/lib/types";
 import { PageHeader } from "@/components/admin/ui";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default async function EditDishPage(
@@ -17,10 +20,12 @@ export default async function EditDishPage(
   const { id } = await ctx.params;
   const supabase = await createClient();
 
-  const [{ data: dish }, { data: restaurants }] = await Promise.all([
-    supabase.from("dishes").select("*").eq("id", id).maybeSingle(),
-    supabase.from("restaurants").select("id, name, area").order("name"),
-  ]);
+  const [{ data: dish }, { data: restaurants }, activeModel] =
+    await Promise.all([
+      supabase.from("dishes").select("*").eq("id", id).maybeSingle(),
+      supabase.from("restaurants").select("id, name, area").order("name"),
+      activeTaggerInfo(adminClient()).catch(() => null),
+    ]);
 
   if (!dish) notFound();
 
@@ -56,6 +61,7 @@ export default async function EditDishPage(
       <DishForm
         restaurants={(restaurants as Restaurant[] | null) ?? []}
         initial={initial}
+        activeModel={activeModel}
       />
     </div>
   );

@@ -11,9 +11,17 @@ import {
   type AttributeKey,
   type DeliveryApp,
   type Restaurant,
+  type DishAttributes,
   ALLERGEN_OPTIONS,
 } from "@/lib/types";
+import { providerName } from "@/lib/ai/types";
 import { type DishFormValues } from "./form-values";
+
+export interface ActiveModelInfo {
+  provider: string;
+  model: string;
+  label: string | null;
+}
 
 export type { DishFormValues } from "./form-values";
 
@@ -27,9 +35,11 @@ function clamp01(v: unknown): number {
 export default function DishForm({
   restaurants,
   initial,
+  activeModel,
 }: {
   restaurants: Restaurant[];
   initial: DishFormValues;
+  activeModel?: ActiveModelInfo | null;
 }) {
   const router = useRouter();
   const [v, setV] = useState<DishFormValues>(initial);
@@ -40,6 +50,10 @@ export default function DishForm({
   const [newRName, setNewRName] = useState("");
   const [newRArea, setNewRArea] = useState("");
   const [tagDraft, setTagDraft] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [aiFilled, setAiFilled] = useState(false);
 
   const isEdit = Boolean(v.id);
 
@@ -80,6 +94,37 @@ export default function DishForm({
     if (!t) return;
     setV((prev) =>
       prev.tags.includes(t) ? prev : { ...prev, tags: [...prev.tags, t] }
+    );
+  }
+
+  async function aiFill() {
+    if (!v.name.trim()) return;
+    setAiBusy(true);
+    setAiError(null);
+    setAiNotice(null);
+    const res = await fetch("/api/admin/tag-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: v.name, description: v.description }),
+    });
+    setAiBusy(false);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.attributes) {
+      setAiError(data?.error ?? "AI fill failed.");
+      return;
+    }
+    const attributes = data.attributes as DishAttributes;
+    const newTags = Array.isArray(data.tags) ? (data.tags as string[]) : [];
+    setV((prev) => ({
+      ...prev,
+      attributes,
+      tags: Array.from(new Set([...prev.tags, ...newTags])),
+    }));
+    setAiFilled(true);
+    setAiNotice(
+      "✨ AI filled in the weights" +
+        (newTags.length ? ` and added ${newTags.length} tag(s)` : "") +
+        " below — review before you save."
     );
   }
 
@@ -295,10 +340,49 @@ export default function DishForm({
         </Field>
       </div>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-1 text-sm font-medium">
-          Taste weights (0–1)
-        </legend>
+      <fieldset
+        className={`flex flex-col gap-3 rounded-lg ${
+          aiFilled ? "bg-green-500/[0.05]" : ""
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <legend className="text-sm font-medium">Taste weights (0–1)</legend>
+          <button
+            type="button"
+            onClick={aiFill}
+            disabled={aiBusy || !v.name.trim() || !activeModel}
+            title={
+              !activeModel
+                ? "Set an active AI model in AI settings first"
+                : !v.name.trim()
+                  ? "Enter a dish name first"
+                  : undefined
+            }
+            className="shrink-0 rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium disabled:opacity-40 dark:border-white/20"
+          >
+            {aiBusy ? "Thinking…" : "✨ Fill with AI"}
+          </button>
+        </div>
+        {activeModel ? (
+          <p className="-mt-2 text-[11px] text-black/40 dark:text-white/40">
+            Uses {providerName(activeModel.provider)} ·{" "}
+            <code>{activeModel.model}</code>
+          </p>
+        ) : (
+          <p className="-mt-2 text-[11px] text-amber-600">
+            No active AI model — set one up in AI settings to enable this.
+          </p>
+        )}
+        {aiNotice && (
+          <p className="rounded-lg bg-green-500/10 px-3 py-2 text-xs text-green-700">
+            {aiNotice}
+          </p>
+        )}
+        {aiError && (
+          <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-600">
+            {aiError}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
           {ATTRIBUTE_KEYS.map((k) => (
             <label key={k} className="flex flex-col gap-1 text-sm">
