@@ -130,9 +130,12 @@ Bradley–Terry, with Thompson sampling for exploration.
 
 - **Stop condition = the decision:** when the champion wins 3 duels in a
   row, go to the result screen with it as the hero pick. Also hard-cap
-  sessions at ~10 rounds regardless.
-- **"Neither":** discard the current champion and jump back to probe pairs;
-  allow at most 2 "neither"s per session, then commit to best-so-far.
+  sessions at ~12 rounds regardless.
+- **"Neither":** retire both shown dishes for the rest of the session,
+  discard the current champion, and jump back to probe pairs drawn from
+  the remaining pool. Allow up to 4 "neither"s per session (or until
+  fewer than two fresh dishes remain), then commit to the best-so-far
+  among dishes the user hasn't refused.
 
 Expose two API routes, both operating on the signed-in user's row:
 

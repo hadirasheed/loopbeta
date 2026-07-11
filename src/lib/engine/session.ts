@@ -8,8 +8,8 @@ import { score, sampleWeights, meanWeights } from "./scoring";
 
 export const NUM_PROBES = 3;
 export const WINS_TO_COMMIT = 3;
-export const MAX_NEITHER = 2;
-export const HARD_CAP_ROUNDS = 10;
+export const MAX_NEITHER = 4;
+export const HARD_CAP_ROUNDS = 12;
 
 // Appetite probes, in order: their pick sets each dimension fast.
 const PROBE_DIMS: AttributeKey[] = ["heaviness", "spiciness", "adventurousness"];
@@ -30,6 +30,7 @@ export interface SessionState {
   beatenByChampion: Set<string>; // dishes the champion has defeated
   winCounts: Map<string, number>; // wins per dish across the session
   shownPairs: Set<string>; // "a|b" (sorted) pairs already presented
+  rejected: Set<string>; // dishes in a "neither" duel — the user wants neither
 }
 
 function pairKey(a: string, b: string): string {
@@ -41,12 +42,17 @@ export function deriveState(duels: DuelRecord[]): SessionState {
   const roundIndex = duels.length;
   const winCounts = new Map<string, number>();
   const shownPairs = new Set<string>();
+  const rejected = new Set<string>();
 
   let lastNeitherRound = -1;
   duels.forEach((d, i) => {
     shownPairs.add(pairKey(d.dish_a, d.dish_b));
     if (d.winner === "neither") {
       lastNeitherRound = i;
+      // "Neither" means the user wants neither dish — retire both for this
+      // session so they don't keep coming back.
+      rejected.add(d.dish_a);
+      rejected.add(d.dish_b);
     } else {
       const w = d.winner === "a" ? d.dish_a : d.dish_b;
       winCounts.set(w, (winCounts.get(w) ?? 0) + 1);
@@ -83,7 +89,18 @@ export function deriveState(duels: DuelRecord[]): SessionState {
     beatenByChampion,
     winCounts,
     shownPairs,
+    rejected,
   };
+}
+
+/**
+ * Dishes still worth showing this session: everything the user hasn't sent
+ * away with a "neither". Falls back to the full pool if that empties it, so
+ * the session can always finish.
+ */
+export function sessionPool(eligible: Dish[], state: SessionState): Dish[] {
+  const pool = eligible.filter((d) => !state.rejected.has(d.id));
+  return pool.length > 0 ? pool : eligible;
 }
 
 export type NextStep =
@@ -125,6 +142,7 @@ function pickChallenger(
   eligible: Dish[],
   championId: string,
   beaten: Set<string>,
+  shownPairs: Set<string>,
   weights: TasteWeights
 ): Dish | null {
   const sampled = sampleWeights(weights);
@@ -133,21 +151,31 @@ function pickChallenger(
     .map((d) => ({ d, s: score(d.attributes, sampled) }))
     .sort((x, y) => y.s - x.s);
 
+  // Best: a matchup the user hasn't seen at all this session.
+  const unseen = ranked.find(
+    (r) => !beaten.has(r.d.id) && !shownPairs.has(pairKey(championId, r.d.id))
+  );
+  if (unseen) return unseen.d;
+  // Next: at least someone the current champion hasn't already beaten.
   const fresh = ranked.find((r) => !beaten.has(r.d.id));
   if (fresh) return fresh.d;
   // Everyone eligible has already lost to the champion; nothing new to show.
   return ranked[0]?.d ?? null;
 }
 
-/** Best dish so far: most wins, tie-broken by mean-weight score. */
+/**
+ * Best dish so far: most wins, tie-broken by mean-weight score. Dishes the
+ * user "neither"-ed are only considered if nothing else is left.
+ */
 export function bestSoFar(
   eligible: Dish[],
   state: SessionState,
   weights: TasteWeights
 ): Dish | null {
-  if (eligible.length === 0) return null;
+  const pool = sessionPool(eligible, state);
+  if (pool.length === 0) return null;
   const means = meanWeights(weights);
-  return [...eligible].sort((a, b) => {
+  return [...pool].sort((a, b) => {
     const wa = state.winCounts.get(a.id) ?? 0;
     const wb = state.winCounts.get(b.id) ?? 0;
     if (wb !== wa) return wb - wa;
@@ -185,15 +213,22 @@ export function nextStep(
     return {
       done: true,
       heroId: commitId,
-      backupId: pickBackup(eligible, commitId, weights),
+      backupId: pickBackup(
+        sessionPool(eligible, state),
+        commitId,
+        weights
+      ),
     };
   }
+
+  // Everything below draws from the pool minus "neither"-ed dishes.
+  const pool = sessionPool(eligible, state);
 
   const probing = state.roundsSinceReset < NUM_PROBES || state.champion === null;
 
   if (probing) {
     const dim = PROBE_DIMS[Math.min(state.roundsSinceReset, PROBE_DIMS.length - 1)];
-    const pair = pickProbePair(eligible, dim, state.shownPairs);
+    const pair = pickProbePair(pool, dim, state.shownPairs);
     if (pair) {
       return {
         done: false,
@@ -207,9 +242,10 @@ export function nextStep(
   // King-of-the-hill.
   if (state.champion) {
     const challenger = pickChallenger(
-      eligible,
+      pool,
       state.champion,
       state.beatenByChampion,
+      state.shownPairs,
       weights
     );
     if (challenger) {
@@ -224,7 +260,7 @@ export function nextStep(
 
   // Fallback: no champion and no probe pair (tiny catalog) — pick top two.
   const sampled = sampleWeights(weights);
-  const ranked = [...eligible].sort(
+  const ranked = [...pool].sort(
     (a, b) => score(b.attributes, sampled) - score(a.attributes, sampled)
   );
   if (ranked.length >= 2) {
@@ -270,6 +306,14 @@ export function commitDecision(
   // Only one eligible dish left overall → nothing to duel against.
   if (eligible.length === 1) {
     return eligible[0].id;
+  }
+  // The user has "neither"-ed their way through the catalog: fewer than two
+  // non-rejected dishes remain, so there's no fresh duel left to offer.
+  const remaining = eligible.filter((d) => !state.rejected.has(d.id));
+  if (remaining.length < 2) {
+    return (
+      remaining[0]?.id ?? bestSoFar(eligible, state, weights)?.id ?? null
+    );
   }
   return null;
 }

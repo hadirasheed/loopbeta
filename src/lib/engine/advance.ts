@@ -7,6 +7,7 @@ import {
   deriveState,
   nextStep,
   pickBackup,
+  sessionPool,
   type NextStep,
   type SessionState,
 } from "./session";
@@ -168,7 +169,9 @@ export async function commitBestNow(
   );
   const hero = bestSoFar(eligible, state, weights) ?? eligible[0] ?? null;
   const heroId = hero?.id ?? "";
-  const backupId = heroId ? pickBackup(eligible, heroId, weights) : null;
+  const backupId = heroId
+    ? pickBackup(sessionPool(eligible, state), heroId, weights)
+    : null;
 
   if (heroId) {
     await db

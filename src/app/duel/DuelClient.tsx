@@ -249,7 +249,7 @@ export default function DuelClient({
                     </div>
                     <div className="mt-[3px] truncate text-[12px] font-semibold text-accent-dark">
                       {backup.restaurantName}
-                      {backup.price != null ? ` · ${backup.price}` : ""}
+                      {backup.price != null ? ` · K.D ${backup.price}` : ""}
                     </div>
                     {backup.delivery_apps.length > 0 && (
                       <div className="mt-[9px] flex gap-[5px]">
@@ -473,7 +473,7 @@ function Restaurant({ name, size }: { name: string; size: number }) {
 function PricePill({ price }: { price: number }) {
   return (
     <span className="shrink-0 rounded-full border-[2.5px] border-ink bg-accent px-[11px] py-1 text-[14px] font-bold text-ink shadow-hard-sm">
-      {price}
+      K.D {price}
     </span>
   );
 }
