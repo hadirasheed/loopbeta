@@ -10,9 +10,10 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Run on all paths except static assets and image files, so the session
-     * cookie stays fresh on real navigations and API calls.
+     * Run on all paths except static assets, image files, and the PWA
+     * plumbing (manifest + service worker) — the browser fetches those
+     * without auth and they must never bounce to /login.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

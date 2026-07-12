@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import InstallApp from "@/components/InstallApp";
 
 /**
  * Hamburger button that opens a bottom tray with the account name, an
@@ -84,6 +85,8 @@ export default function AppMenu({
                 </svg>
                 Edit preferences
               </Link>
+
+              <InstallApp variant="tray" />
 
               <form action="/auth/signout" method="post">
                 <button

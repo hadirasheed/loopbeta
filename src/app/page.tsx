@@ -6,6 +6,7 @@ import Frame from "@/components/Frame";
 import Logo from "@/components/Logo";
 import DuelHero from "@/components/DuelHero";
 import SignOutButton from "@/components/SignOutButton";
+import InstallApp from "@/components/InstallApp";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -88,6 +89,8 @@ export default async function HomePage() {
           <span aria-hidden>·</span>
           <SignOutButton />
         </div>
+
+        <InstallApp variant="home" />
       </main>
     </Frame>
   );

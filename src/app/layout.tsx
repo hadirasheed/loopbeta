@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fredoka, Nunito } from "next/font/google";
+import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
 const fredoka = Fredoka({
@@ -17,6 +18,24 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: "Loop — what should I eat?",
   description: "Two dishes. One tap. Zero overthinking.",
+  appleWebApp: {
+    capable: true,
+    title: "Loop",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#efeee9",
+  width: "device-width",
+  initialScale: 1,
+  // Installed-app feel: no pinch-zoom bounce fighting the card UI.
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -29,7 +48,10 @@ export default function RootLayout({
       lang="en"
       className={`${fredoka.variable} ${nunito.variable} h-full`}
     >
-      <body className="flex min-h-dvh flex-col">{children}</body>
+      <body className="flex min-h-dvh flex-col">
+        <PwaRegister />
+        {children}
+      </body>
     </html>
   );
 }
