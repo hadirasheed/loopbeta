@@ -11,7 +11,8 @@ import {
   type NextStep,
   type SessionState,
 } from "./session";
-import type { Dish as DishType, TasteWeights } from "@/lib/types";
+import type { Dish as DishType, TasteWeights, Mood } from "@/lib/types";
+import type { DuelContext } from "./context";
 import {
   loadConstraints,
   loadDishes,
@@ -61,6 +62,7 @@ interface EngineContext {
   eligible: DishType[];
   weights: TasteWeights;
   state: SessionState;
+  context: DuelContext;
   card: (id: string) => DishCard | null;
 }
 
@@ -70,21 +72,26 @@ async function loadContext(
   userId: string,
   sessionId: string
 ): Promise<EngineContext> {
-  const [dishes, constraints, weights, duels, restaurantNames] =
+  const [dishes, constraints, weights, duels, restaurantNames, mood] =
     await Promise.all([
       loadDishes(db),
       loadConstraints(db, userId),
       loadOrInitTaste(db, userId),
       loadDuels(db, sessionId),
       loadRestaurantNames(db),
+      loadMood(db, sessionId),
     ]);
 
   // Duel pool = published (loadDishes) ∩ available now (daypart) ∩ within the
   // user's hard constraints.
-  const available = filterByAvailability(dishes, currentDaypart(new Date()));
+  const daypart = currentDaypart(new Date());
+  const available = filterByAvailability(dishes, daypart);
   const eligible = filterEligible(available, constraints);
   const dishById = new Map(dishes.map((d) => [d.id, d]));
   const state = deriveState(duels);
+
+  // Time of day + appetite + a per-session seed shape which dishes surface.
+  const context: DuelContext = { mood, daypart, seed: sessionId };
 
   const card = (id: string): DishCard | null => {
     const d = dishById.get(id);
@@ -92,7 +99,19 @@ async function loadContext(
     return buildCard(d, restaurantNames.get(d.restaurant_id) ?? "—");
   };
 
-  return { eligible, weights, state, card };
+  return { eligible, weights, state, context, card };
+}
+
+async function loadMood(
+  db: SupabaseClient,
+  sessionId: string
+): Promise<Mood | null> {
+  const { data } = await db
+    .from("sessions")
+    .select("mood")
+    .eq("id", sessionId)
+    .maybeSingle();
+  return (data?.mood as Mood | null) ?? null;
 }
 
 const FALLBACK_CARD = (id: string): DishCard => ({
@@ -116,12 +135,12 @@ export async function computePayload(
   userId: string,
   sessionId: string
 ): Promise<StepPayload> {
-  const { eligible, weights, state, card } = await loadContext(
+  const { eligible, weights, state, context, card } = await loadContext(
     db,
     userId,
     sessionId
   );
-  const step: NextStep = nextStep(eligible, state, weights);
+  const step: NextStep = nextStep(eligible, state, weights, context);
 
   if (step.done) {
     const hero = card(step.heroId);

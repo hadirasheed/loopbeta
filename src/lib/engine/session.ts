@@ -5,6 +5,7 @@ import {
   type TasteWeights,
 } from "@/lib/types";
 import { score, sampleWeights, meanWeights } from "./scoring";
+import { effectiveWeights, makePrng, type DuelContext } from "./context";
 
 export const NUM_PROBES = 3;
 export const WINS_TO_COMMIT = 3;
@@ -107,34 +108,55 @@ export type NextStep =
   | { done: false; aId: string; bId: string; roundIndex: number }
   | { done: true; heroId: string; backupId: string | null };
 
-/** Pick a probe pair: close on every attribute except `dim`, far apart there. */
+/**
+ * Pick a probe pair: far apart on `dim`, close on every other attribute. On top
+ * of that it (a) leans toward the region the user's context prefers — via the
+ * mood/daypart-shifted mean weights — and (b) adds seeded jitter so different
+ * sessions open with different (still-valid) pairs instead of the same two
+ * dishes every time.
+ */
 function pickProbePair(
   eligible: Dish[],
   dim: AttributeKey,
-  shownPairs: Set<string>
+  shownPairs: Set<string>,
+  weights: TasteWeights,
+  rand: () => number
 ): [Dish, Dish] | null {
-  let best: [Dish, Dish] | null = null;
-  let bestScore = -Infinity;
+  const means = meanWeights(weights);
+  const candidates: { pair: [Dish, Dish]; s: number }[] = [];
   for (let i = 0; i < eligible.length; i++) {
     for (let j = i + 1; j < eligible.length; j++) {
       const a = eligible[i];
       const b = eligible[j];
+      if (shownPairs.has(pairKey(a.id, b.id))) continue; // never repeat
       const spread = Math.abs(a.attributes[dim] - b.attributes[dim]);
       let otherDist = 0;
+      let affinity = 0;
       for (const k of ATTRIBUTE_KEYS) {
         if (k === dim) continue;
         otherDist += Math.abs(a.attributes[k] - b.attributes[k]);
+        // How well the pair's shared region matches what the user wants now.
+        affinity += means[k] * ((a.attributes[k] + b.attributes[k]) / 2 - 0.5);
       }
-      // Reward a wide gap on `dim`, penalize differences elsewhere.
-      let s = 2 * spread - otherDist;
-      if (shownPairs.has(pairKey(a.id, b.id))) s -= 100; // avoid repeats
-      if (s > bestScore) {
-        bestScore = s;
-        best = [a, b];
-      }
+      // Wide gap on `dim`, close elsewhere, leaning into the context region.
+      candidates.push({ pair: [a, b], s: 2 * spread - otherDist + 1.5 * affinity });
     }
   }
-  return best;
+  if (candidates.length === 0) return null;
+
+  // Instead of always taking the single best pair (which would open every
+  // session with the same two dishes), sample among the strongest handful,
+  // rank-weighted so quality stays high but the opener varies per session.
+  candidates.sort((x, y) => y.s - x.s);
+  const topK = Math.min(8, candidates.length);
+  let totalWeight = 0;
+  for (let r = 0; r < topK; r++) totalWeight += topK - r; // topK, …, 1
+  let pick = rand() * totalWeight;
+  for (let r = 0; r < topK; r++) {
+    pick -= topK - r;
+    if (pick <= 0) return candidates[r].pair;
+  }
+  return candidates[0].pair;
 }
 
 /** King-of-the-hill challenger: top sampled-scoring dish the champion hasn't met. */
@@ -205,7 +227,8 @@ export function pickBackup(
 export function nextStep(
   eligible: Dish[],
   state: SessionState,
-  weights: TasteWeights
+  weights: TasteWeights,
+  context?: DuelContext
 ): NextStep {
   // Terminal checks first.
   const commitId = commitDecision(eligible, state, weights);
@@ -221,6 +244,14 @@ export function nextStep(
     };
   }
 
+  // Bias selection by mood + time of day; keep learning (weights) untouched.
+  const eff = context ? effectiveWeights(weights, context) : weights;
+  // Seeded per session + round: stable if the client re-fetches the same
+  // round, but different every new session so the opening pair varies.
+  const rand = context
+    ? makePrng(`${context.seed}:${state.roundIndex}`)
+    : Math.random;
+
   // Everything below draws from the pool minus "neither"-ed dishes.
   const pool = sessionPool(eligible, state);
 
@@ -228,7 +259,7 @@ export function nextStep(
 
   if (probing) {
     const dim = PROBE_DIMS[Math.min(state.roundsSinceReset, PROBE_DIMS.length - 1)];
-    const pair = pickProbePair(pool, dim, state.shownPairs);
+    const pair = pickProbePair(pool, dim, state.shownPairs, eff, rand);
     if (pair) {
       return {
         done: false,
@@ -246,7 +277,7 @@ export function nextStep(
       state.champion,
       state.beatenByChampion,
       state.shownPairs,
-      weights
+      eff
     );
     if (challenger) {
       return {
@@ -259,7 +290,7 @@ export function nextStep(
   }
 
   // Fallback: no champion and no probe pair (tiny catalog) — pick top two.
-  const sampled = sampleWeights(weights);
+  const sampled = sampleWeights(eff);
   const ranked = [...pool].sort(
     (a, b) => score(b.attributes, sampled) - score(a.attributes, sampled)
   );

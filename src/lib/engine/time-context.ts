@@ -1,8 +1,18 @@
 import type { Daypart, Dish } from "@/lib/types";
 
-/** Map an hour (0–23) to a daypart bucket. */
+/** The wall-clock hour (0–23) in Kuwait, regardless of the server's timezone. */
+export function kuwaitHour(now: Date = new Date()): number {
+  const s = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kuwait",
+    hour: "2-digit",
+    hour12: false,
+  }).format(now);
+  return parseInt(s, 10) % 24;
+}
+
+/** Map the current Kuwait hour to a daypart bucket. */
 export function currentDaypart(now: Date = new Date()): Daypart {
-  const h = now.getHours();
+  const h = kuwaitHour(now);
   if (h < 6) return "night";
   if (h < 12) return "morning";
   if (h < 17) return "afternoon";
